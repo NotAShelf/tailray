@@ -1,0 +1,14 @@
+[package]
+name = "tray"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = "0.4"
+env_logger = "0.9"
+open = "2.1"
+which = "4.2"
+notify-rust = "4.5"
+clipboard = "0.5.0"
+ksni = "0.2"
+# ksnay = { path = "../ksnay" }
