@@ -1,11 +1,11 @@
 use clipboard::ClipboardContext;
 use clipboard::ClipboardProvider;
 use ksni::{
-    self, menu::{CheckmarkItem, StandardItem, SubMenu},
-    Category, Icon, MenuItem, Status,
-    Tray, TextDirection, ToolTip, TrayService,
+    self,
+    menu::{CheckmarkItem, StandardItem, SubMenu},
+    MenuItem, ToolTip, Tray, TrayService,
 };
-use log::info;
+use log::{debug, info};
 use notify_rust::Notification;
 use std::{
     path::PathBuf,
@@ -15,19 +15,27 @@ use which::which;
 
 #[derive(Debug)]
 struct Context {
-    // TODO: rwlock
+    // TODO: arc mutex
     ip: String,
     pkexec: PathBuf,
 }
 
-#[derive(Debug)]
 struct MyTray {
     ctx: Context,
+    enabled: bool,
     checked: bool,
 }
 
 impl MyTray {
-    fn do_service_link(verb: &str) {
+    pub fn new(ctx: Context) -> Self {
+        MyTray {
+            ctx,
+            enabled: false,
+            checked: false,
+        }
+    }
+
+    fn do_service_link(&self, verb: &str) {
         // consider using https://stackoverflow.com/a/66292796/554150
         // or async? https://rust-lang.github.io/async-book/03_async_await/01_chapter.html
         let child = Command::new("/usr/bin/pkexec")
@@ -48,10 +56,13 @@ impl MyTray {
             .show();
     }
     fn pkexec_found(&self) -> bool {
+        // let permissions = pkexec_bin.metadata()?.permissions();
+        // let is_executable = permissions.mode() & 0o111 != 0;
         self.ctx.pkexec.is_file()
     }
     fn copy_ip(&self) {
         if self.ctx.ip.is_empty() {
+            debug!("no ip");
             return;
         }
         let mut cctx: ClipboardContext = ClipboardProvider::new().unwrap();
@@ -60,12 +71,45 @@ impl MyTray {
 
         let _result = Notification::new()
             .summary("This device")
-            .body(format!(
-                "Copy the IP address {:?} to the Clipboard",
-                cctx.get_contents()
-            ).as_str())
+            .body(
+                format!(
+                    "Copy the IP address {:?} to the Clipboard",
+                    cctx.get_contents()
+                )
+                .as_str(),
+            )
             .icon("info")
             .show();
+    }
+    fn ready(&mut self) -> () {
+        self.checked = true;
+        info!("ready");
+    }
+    fn _menu(&self) -> Vec<StandardItem<MyTray>> {
+        let pkexec_exist: bool = self.pkexec_found();
+
+        let m_connect = StandardItem {
+            label: "Connect".into(),
+            icon_name: "network-transmit-receive".into(),
+            enabled: self.enabled,
+            visible: pkexec_exist,
+            activate: Box::new(|this: &mut Self| this.do_service_link("up")),
+            ..Default::default()
+        };
+        let m_disconnect = StandardItem {
+            label: "Disconnect".into(),
+            icon_name: "network-offline".into(),
+            enabled: !self.enabled,
+            visible: pkexec_exist,
+            activate: Box::new(|this: &mut Self| this.do_service_link("down")),
+            ..Default::default()
+        };
+        let m_this = StandardItem {
+            label: "This device:".into(),
+            activate: Box::new(|this: &mut Self| this.copy_ip()),
+            ..Default::default()
+        };
+        vec![m_connect, m_disconnect, m_this]
     }
 }
 
@@ -73,43 +117,37 @@ impl Tray for MyTray {
     fn title(&self) -> String {
         if self.checked { "CHECKED!" } else { "MyTray" }.into()
     }
-
+    fn tool_tip(&self) -> ToolTip {
+        let state = if self.enabled {
+            "Connected"
+        } else {
+            "Disconnected"
+        };
+        ToolTip {
+            icon_name: Default::default(),
+            icon_pixmap: Default::default(),
+            title: format!("Tailscale: {}", state),
+            description: Default::default(),
+        }
+    }
     fn icon_name(&self) -> String {
-        "network".into()
+        if self.enabled {
+            "network-wired".into()
+        } else {
+            "network-offline".into()
+        }
     }
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
-        // use ksnay::menu::*;
-        // let pkexec_bin = find_exec("pkexec");
-        let pkexec_exist: bool = self.pkexec_found();
-        // let permissions = pkexec_bin.metadata()?.permissions();
-        // let is_executable = permissions.mode() & 0o111 != 0;
+        let mut m = self._menu();
+        let m_this = m.pop().unwrap();
+        let m_disconnect = m.pop().unwrap();
+        let m_connect = m.pop().unwrap();
         vec![
-            StandardItem {
-                label: "Connect".into(),
-                icon_name: "network-transmit-receive".into(),
-                enabled: true,
-                visible: pkexec_exist,
-                activate: Box::new(|_| MyTray::do_service_link("up")),
-                ..Default::default()
-            }
-            .into(),
-            StandardItem {
-                label: "Disconnect".into(),
-                icon_name: "network-offline".into(),
-                enabled: false,
-                visible: pkexec_exist,
-                activate: Box::new(|_| MyTray::do_service_link("down")),
-                ..Default::default()
-            }
-            .into(),
+            m_connect.into(),
+            m_disconnect.into(),
             MenuItem::Separator,
-            StandardItem {
-                label: "This device:".into(),
-                activate: Box::new(|t: &mut MyTray| t.copy_ip()),
-                ..Default::default()
-            }
-            .into(),
+            m_this.into(),
             SubMenu {
                 label: "Network Devices:".into(),
                 submenu: vec![
@@ -153,9 +191,7 @@ impl Tray for MyTray {
         ]
     }
 
-    fn watcher_online(&self) {
-
-    }
+    fn watcher_online(&self) {}
 
     fn watcher_offine(&self) -> bool {
         info!("Wathcer offline, shutdown the tray.");
@@ -173,15 +209,14 @@ fn main() {
         ip: "".to_owned(),
     };
 
-    let tray = MyTray { ctx, checked: false};
+    let tray = MyTray::new(ctx);
     let service = TrayService::new(tray);
 
     let handle = service.handle();
     service.spawn();
 
     handle.update(|tray: &mut MyTray| {
-        tray.checked = true;
-        // TODO: update ip
+        tray.ready();
     });
     loop {
         std::thread::park();
