@@ -1,4 +1,5 @@
 mod svg;
+mod tailscale;
 
 use clipboard::ClipboardContext;
 use clipboard::ClipboardProvider;
@@ -83,9 +84,10 @@ impl MyTray {
             .icon("info")
             .show();
     }
-    fn ready(&mut self) -> () {
-        self.checked = true;
-        info!("ready");
+    pub fn init(&mut self) -> () {
+        info!("init");
+        let status: tailscale::Status = tailscale::get_status().unwrap();
+        self.ctx.ip = status.this_machine.ips[0].clone();
     }
     fn _menu(&self) -> Vec<StandardItem<MyTray>> {
         let pkexec_exist: bool = self.pkexec_found();
@@ -107,7 +109,7 @@ impl MyTray {
             ..Default::default()
         };
         let m_this = StandardItem {
-            label: "This device:".into(),
+            label: format!("This device: {}", self.ctx.ip).into(),
             activate: Box::new(|this: &mut Self| this.copy_ip()),
             ..Default::default()
         };
@@ -214,15 +216,18 @@ fn main() {
         ip: "".to_owned(),
     };
 
-    let tray = MyTray::new(ctx);
-    let service = TrayService::new(tray);
+    let mut tray = MyTray::new(ctx);
+    tray.init();
 
+    // TODO: need a map of menu items of node with ip
+
+    let service = TrayService::new(tray);
     let handle = service.handle();
     service.spawn();
-
     handle.update(|tray: &mut MyTray| {
-        tray.ready();
+        tray.checked = true;
     });
+
     loop {
         std::thread::park();
     }
