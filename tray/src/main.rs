@@ -140,7 +140,7 @@ impl Tray for MyTray {
         }
     }
     fn icon_pixmap(&self) -> Vec<Icon> {
-        svg::load(self.enabled)
+        svg::load()
     }
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
