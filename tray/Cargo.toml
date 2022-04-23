@@ -10,5 +10,8 @@ open = "2.1"
 which = "4.2"
 notify-rust = "4.5"
 clipboard = "0.5.0"
+resvg = "0.22.0"
+usvg = "0.22.0"
+tiny-skia = "0.6.3"
 ksni = "0.2"
 # ksnay = { path = "../ksnay" }

@@ -1,7 +1,9 @@
+mod svg;
+
 use clipboard::ClipboardContext;
 use clipboard::ClipboardProvider;
 use ksni::{
-    self,
+    self, Icon,
     menu::{CheckmarkItem, StandardItem, SubMenu},
     MenuItem, ToolTip, Tray, TrayService,
 };
@@ -132,10 +134,13 @@ impl Tray for MyTray {
     }
     fn icon_name(&self) -> String {
         if self.enabled {
-            "network-wired".into()
+            "tailscale-online".into()
         } else {
-            "network-offline".into()
+            "tailscale-offline".into()
         }
+    }
+    fn icon_pixmap(&self) -> Vec<Icon> {
+        svg::load(self.enabled)
     }
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
