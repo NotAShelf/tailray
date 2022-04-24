@@ -4,9 +4,9 @@ mod tailscale;
 use clipboard::ClipboardContext;
 use clipboard::ClipboardProvider;
 use ksni::{
-    self, Icon,
+    self,
     menu::{CheckmarkItem, StandardItem, SubMenu},
-    MenuItem, ToolTip, Tray, TrayService,
+    Icon, MenuItem, ToolTip, Tray, TrayService,
 };
 use log::{debug, info};
 use notify_rust::Notification;
@@ -21,6 +21,7 @@ struct Context {
     // TODO: arc mutex
     ip: String,
     pkexec: PathBuf,
+    status: tailscale::Status,
 }
 
 struct MyTray {
@@ -28,13 +29,20 @@ struct MyTray {
     enabled: bool,
     checked: bool,
 }
-
 impl MyTray {
-    pub fn new(ctx: Context) -> Self {
+    pub fn new() -> Self {
+        let status: tailscale::Status = tailscale::get_status().unwrap();
+        let ctx = Context {
+            ip: status.this_machine.ips[0].clone(),
+            pkexec: which("pkexec").unwrap(),
+            status,
+        };
+        assert_eq!(ctx.pkexec, PathBuf::from("/usr/bin/pkexec"));
+
         MyTray {
-            ctx,
-            enabled: false,
+            enabled: ctx.status.tailscale_up,
             checked: false,
+            ctx,
         }
     }
 
@@ -86,8 +94,6 @@ impl MyTray {
     }
     pub fn init(&mut self) -> () {
         info!("init");
-        let status: tailscale::Status = tailscale::get_status().unwrap();
-        self.ctx.ip = status.this_machine.ips[0].clone();
     }
     fn _menu(&self) -> Vec<StandardItem<MyTray>> {
         let pkexec_exist: bool = self.pkexec_found();
@@ -109,7 +115,11 @@ impl MyTray {
             ..Default::default()
         };
         let m_this = StandardItem {
-            label: format!("This device: {}", self.ctx.ip).into(),
+            label: format!(
+                "This device: {} ({})",
+                self.ctx.status.this_machine.display_name, self.ctx.ip
+            )
+            .into(),
             activate: Box::new(|this: &mut Self| this.copy_ip()),
             ..Default::default()
         };
@@ -142,6 +152,7 @@ impl Tray for MyTray {
         }
     }
     fn icon_pixmap(&self) -> Vec<Icon> {
+        // TODO: fix setting icon
         svg::load()
     }
 
@@ -209,14 +220,7 @@ impl Tray for MyTray {
 fn main() {
     env_logger::init();
 
-    let pkexec = which("pkexec").unwrap();
-    assert_eq!(pkexec, PathBuf::from("/usr/bin/pkexec"));
-    let ctx = Context {
-        pkexec,
-        ip: "".to_owned(),
-    };
-
-    let mut tray = MyTray::new(ctx);
+    let mut tray = MyTray::new();
     tray.init();
 
     // TODO: need a map of menu items of node with ip

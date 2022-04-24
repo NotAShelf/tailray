@@ -1,11 +1,34 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{collections::HashMap, process::Command};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Formatter},
+    process::Command,
+};
+
+#[derive(Debug)]
+pub enum PeerKind {
+    DNSName(String),
+    HostName(String),
+}
+impl Default for PeerKind {
+    fn default() -> Self {
+        PeerKind::HostName("default".to_owned())
+    }
+}
+impl Display for PeerKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match &self {
+            PeerKind::DNSName(d) => write!(f, "{d}"),
+            PeerKind::HostName(h) => write!(f, "{h}"),
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Machine {
     #[serde(skip)]
-    display_name: String,
+    pub display_name: PeerKind,
     #[serde(rename(deserialize = "DNSName"))]
     dns_name: String,
     #[serde(rename(deserialize = "HostName"))]
@@ -31,7 +54,7 @@ struct User {
 pub struct Status {
     // TODO: mutex
     #[serde(skip)]
-    tailscale_up: bool,
+    pub tailscale_up: bool,
     #[serde(rename(deserialize = "BackendState"))]
     backend_state: String,
     #[serde(rename(deserialize = "Self"))]
@@ -43,6 +66,7 @@ pub struct Status {
     #[serde(rename(deserialize = "User"))]
     user: HashMap<String, User>,
 }
+
 pub fn get_raw_status() -> Result<Value, serde_json::Error> {
     serde_json::from_str::<Value>(&get_json())
 }
@@ -72,26 +96,26 @@ fn get_json() -> String {
 fn dns_or_quote_hostname(m: &mut Machine, dns_suffix: &str) {
     let base_name = trim_suffix(&m.dns_name, dns_suffix);
     m.display_name = match base_name {
-        n if n.is_empty() => sanitize_hostname(m.hostname.as_str()),
-        base => base,
+        n if n.is_empty() => PeerKind::DNSName(sanitize_hostname(m.hostname.as_str())),
+        base => PeerKind::HostName(base),
     }
 }
 fn has_suffix(name: &str, suffix: &str) -> bool {
-	let name = name.trim_end_matches(".");
-	let mut suffix = suffix.trim_end_matches(".");
-	suffix = suffix.trim_start_matches(".");
-	let name_base = name.trim_end_matches(suffix);
-	name_base.len() < name.len() && name_base.ends_with(".")
+    let name = name.trim_end_matches(".");
+    let mut suffix = suffix.trim_end_matches(".");
+    suffix = suffix.trim_start_matches(".");
+    let name_base = name.trim_end_matches(suffix);
+    name_base.len() < name.len() && name_base.ends_with(".")
 }
 
 fn trim_suffix(name: &str, suffix: &str) -> String {
     let mut new_name = name.clone();
-	if has_suffix(name, &suffix) {
-		new_name = new_name.trim_end_matches(".");
-		let suffix = suffix.trim_start_matches(".").trim_end_matches(".");
-		new_name = new_name.trim_end_matches(suffix);
-	}
-	new_name.trim_end_matches(".").to_string()
+    if has_suffix(name, &suffix) {
+        new_name = new_name.trim_end_matches(".");
+        let suffix = suffix.trim_start_matches(".").trim_end_matches(".");
+        new_name = new_name.trim_end_matches(suffix);
+    }
+    new_name.trim_end_matches(".").to_string()
 }
 
 fn sanitize_hostname(hostname: &str) -> String {
