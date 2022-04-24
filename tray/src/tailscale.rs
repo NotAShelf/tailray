@@ -62,7 +62,7 @@ pub struct Status {
     #[serde(rename(deserialize = "MagicDNSSuffix"))]
     magic_dnssuffix: String,
     #[serde(rename(deserialize = "Peer"))]
-    peers: HashMap<String, Machine>,
+    pub peers: HashMap<String, Machine>,
     #[serde(rename(deserialize = "User"))]
     user: HashMap<String, User>,
 }
@@ -75,6 +75,7 @@ pub fn get_status() -> Result<Status, serde_json::Error> {
     let mut st: Status = serde_json::from_str(get_json().as_str())?;
     st.tailscale_up = match st.backend_state.as_str() {
         "Running" => true,
+        "Stopped" => false,
         _ => false,
     };
     dns_or_quote_hostname(&mut st.this_machine, &st.magic_dnssuffix);
@@ -153,7 +154,7 @@ fn sanitize_hostname(hostname: &str) -> String {
         if !boundary && seperators[&chari] {
             sb.push('-');
         } else if isdnschar(chari) {
-            sb.push(tolower(chari))
+            sb.push(chari.to_ascii_lowercase())
         }
     }
     sb
@@ -161,12 +162,4 @@ fn sanitize_hostname(hostname: &str) -> String {
 
 fn isdnschar(c: char) -> bool {
     c.is_alphanumeric() || c == '-'
-}
-
-fn tolower(c: char) -> char {
-    if c.is_uppercase() {
-        (c as u8 + 'a' as u8 - 'A' as u8) as char
-    } else {
-        c
-    }
 }
