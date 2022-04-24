@@ -7,7 +7,7 @@ use ksni::{
     menu::{StandardItem, SubMenu},
     Icon, MenuItem, ToolTip, Tray, TrayService,
 };
-use log::{debug, info, error};
+use log::{debug, error, info};
 use notify_rust::Notification;
 use std::{
     path::PathBuf,
@@ -75,16 +75,17 @@ impl MyTray {
             debug!("no ip");
             return;
         }
-        let mut cctx: ClipboardContext = ClipboardProvider::new().expect("Clipboard unable to access.");
+        let mut cctx: ClipboardContext =
+            ClipboardProvider::new().expect("Clipboard unable to access.");
         match cctx.set_contents(peer_ip.to_owned()) {
-            Ok(())=> {
+            Ok(()) => {
                 let clip_ip = cctx.get_contents().unwrap();
                 info!("copy ip: {:?}", clip_ip);
                 let _result = Notification::new()
                     .summary(notif_title)
                     .body(format!("Copy the IP address {clip_ip} to the Clipboard").as_str())
                     .icon("info")
-                    .show();        
+                    .show();
             }
             Err(_) => error!("Unable to copy ip to clipboard."),
         }
@@ -117,43 +118,12 @@ impl Tray for MyTray {
     }
     fn icon_pixmap(&self) -> Vec<Icon> {
         // TODO: fix setting icon
-        svg::load()
+        svg::load_icon(self.enabled)
     }
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
-        // let mut m = self._menu();
-        // let m_this = m.pop().unwrap();
-        // let m_disconnect = m.pop().unwrap();
-        // let m_connect = m.pop().unwrap();
-        // let m_devices = self._devices_menu();
         let pkexec_exist: bool = self.pkexec_found();
-
-        let m_connect = StandardItem {
-            label: "Connect".into(),
-            icon_name: "network-transmit-receive".into(),
-            enabled: !self.enabled,
-            visible: pkexec_exist,
-            activate: Box::new(|this: &mut Self| this.do_service_link("up")),
-            ..Default::default()
-        };
-        let m_disconnect = StandardItem {
-            label: "Disconnect".into(),
-            icon_name: "network-offline".into(),
-            enabled: self.enabled,
-            visible: pkexec_exist,
-            activate: Box::new(|this: &mut Self| this.do_service_link("down")),
-            ..Default::default()
-        };
         let my_ip = self.ctx.ip.clone();
-        let m_this = StandardItem {
-            label: format!(
-                "This device: {} ({})",
-                self.ctx.status.this_machine.display_name, self.ctx.ip
-            )
-            .into(),
-            activate: Box::new(move |_| Self::copy_peer_ip(&my_ip, "This device")),
-            ..Default::default()
-        };
 
         let mut my_sub = Vec::new();
         let mut serv_sub = Vec::new();
@@ -174,12 +144,36 @@ impl Tray for MyTray {
             });
             sub.push(menu);
         }
-
         vec![
-            m_connect.into(),
-            m_disconnect.into(),
+            StandardItem {
+                label: "Connect".into(),
+                icon_name: "network-transmit-receive".into(),
+                enabled: !self.enabled,
+                visible: pkexec_exist,
+                activate: Box::new(|this: &mut Self| this.do_service_link("up")),
+                ..Default::default()
+            }
+            .into(),
+            StandardItem {
+                label: "Disconnect".into(),
+                icon_name: "network-offline".into(),
+                enabled: self.enabled,
+                visible: pkexec_exist,
+                activate: Box::new(|this: &mut Self| this.do_service_link("down")),
+                ..Default::default()
+            }
+            .into(),
             MenuItem::Separator,
-            m_this.into(),
+            StandardItem {
+                label: format!(
+                    "This device: {} ({})",
+                    self.ctx.status.this_machine.display_name, self.ctx.ip
+                )
+                .into(),
+                activate: Box::new(move |_| Self::copy_peer_ip(&my_ip, "This device")),
+                ..Default::default()
+            }
+            .into(),
             SubMenu {
                 label: "Network Devices:".into(),
                 submenu: vec![

@@ -1,33 +1,46 @@
-use std::fs::{canonicalize, read};
+const MARK_WHITE: &'static str = r##"
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+<circle cx="40.625" cy="59.5" r="6.625" fill="white"/>
+<circle cx="60.4999" cy="59.5" r="6.625" fill="white"/>
+<circle opacity="0.2" cx="40.625" cy="79.375" r="6.625" fill="white"/>
+<circle opacity="0.2" cx="80.375" cy="79.375" r="6.625" fill="white"/>
+<circle cx="60.4999" cy="79.375" r="6.625" fill="white"/>
+<circle cx="80.375" cy="59.5" r="6.625" fill="white"/>
+<circle opacity="0.2" cx="40.625" cy="39.625" r="6.625" fill="white"/>
+<circle opacity="0.2" cx="60.4999" cy="39.625" r="6.625" fill="white"/>
+<circle opacity="0.2" cx="80.375" cy="39.625" r="6.625" fill="white"/>
+</svg>
+"##;
 
-use ksni::Icon;
-use usvg::{Options, OptionsRef, Tree};
+const MARK_BLACK: &'static str = r##"
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+<circle cx="40.625" cy="59.5" r="6.625" fill="#141414"/>
+<circle cx="60.4999" cy="59.5" r="6.625" fill="#141414"/>
+<circle opacity="0.2" cx="40.625" cy="79.375" r="6.625" fill="#141414"/>
+<circle opacity="0.2" cx="80.375" cy="79.375" r="6.625" fill="#141414"/>
+<circle cx="60.4999" cy="79.375" r="6.625" fill="#141414"/>
+<circle cx="80.375" cy="59.5" r="6.625" fill="#141414"/>
+<circle opacity="0.2" cx="40.625" cy="39.625" r="6.625" fill="#141414"/>
+<circle opacity="0.2" cx="60.4999" cy="39.625" r="6.625" fill="#141414"/>
+<circle opacity="0.2" cx="80.375" cy="39.625" r="6.625" fill="#141414"/>
+</svg>
+"##;
 
-pub(crate) fn load() -> Vec<Icon> {
-    let icons = vec![
-        "tray/assets/Tailscale-Mark-Black.svg",
-        "tray/assets/Tailscale-Mark-White.svg",
-    ];
-
-    let mut opt = Options::default();
-    // Get file's absolute directory.
-    opt.resources_dir = canonicalize(icons[0])
-        .ok()
-        .and_then(|p| p.parent().map(|p| p.to_path_buf()));
-    let pixmap1 = load_svg(icons[0], &opt.to_ref());
-    let pixmap2 = load_svg(icons[1], &opt.to_ref());
-    vec![pixmap1, pixmap2]
+pub fn load_icon(enabled: bool) -> Vec<ksni::Icon> {
+    match enabled {
+        true => vec![to_icon(MARK_WHITE)],
+        false => vec![to_icon(MARK_BLACK)],
+    }
 }
-fn load_svg(path: &str, opt: &OptionsRef) -> Icon {
-    // fn load_svg(path: &str, opt: &OptionsRef) -> Pixmap {
-    let data = read(path).unwrap();
-    let rtree = Tree::from_data(&data, opt).unwrap();
+fn to_icon(svg_str: &str) -> ksni::Icon {
+    let rtree = usvg::Tree::from_str(svg_str, &usvg::Options::default().to_ref()).unwrap();
     let pixmap_size = rtree.svg_node().size;
     let mut pixmap = tiny_skia::Pixmap::new(
         pixmap_size.width().round() as u32,
         pixmap_size.height().round() as u32,
     )
     .unwrap();
+
     resvg::render(
         &rtree,
         usvg::FitTo::Original,
@@ -36,7 +49,7 @@ fn load_svg(path: &str, opt: &OptionsRef) -> Icon {
     )
     .unwrap();
 
-    Icon {
+    ksni::Icon {
         width: pixmap.width() as i32,
         height: pixmap.height() as i32,
         data: pixmap.take(),
