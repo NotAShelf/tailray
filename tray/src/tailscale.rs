@@ -67,21 +67,18 @@ pub struct Status {
     user: HashMap<String, User>,
 }
 
-pub fn get_raw_status() -> Result<Value, serde_json::Error> {
-    serde_json::from_str::<Value>(&get_json())
-}
-
 pub fn get_status() -> Result<Status, serde_json::Error> {
     let mut st: Status = serde_json::from_str(get_json().as_str())?;
+    let dnssuffix = st.magic_dnssuffix.to_owned();
     st.tailscale_up = match st.backend_state.as_str() {
         "Running" => true,
         "Stopped" => false,
         _ => false,
     };
-    dns_or_quote_hostname(&mut st.this_machine, &st.magic_dnssuffix);
+    dns_or_quote_hostname(&mut st.this_machine, &dnssuffix);
     st.peers
         .values_mut()
-        .for_each(|m: &mut Machine| dns_or_quote_hostname(m, &st.magic_dnssuffix));
+        .for_each(|m: &mut Machine| dns_or_quote_hostname(m, &dnssuffix));
     Ok(st)
 }
 
