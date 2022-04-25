@@ -153,13 +153,9 @@ fn sanitize_hostname(hostname: &str) -> String {
         let chari = chars.nth(i).unwrap();
         if !boundary && seperators[&chari] {
             sb.push('-');
-        } else if isdnschar(chari) {
+        } else if chari.is_alphanumeric() || chari == '-' {
             sb.push(chari.to_ascii_lowercase())
         }
     }
     sb
-}
-
-fn isdnschar(c: char) -> bool {
-    c.is_alphanumeric() || c == '-'
 }

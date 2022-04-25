@@ -26,10 +26,17 @@ struct Context {
 
 struct MyTray {
     ctx: Context,
-    enabled: bool,
 }
 impl MyTray {
     pub fn new() -> Self {
+        MyTray {
+            ctx: Self::get_current_status(),
+        }
+    }
+    fn enabled(&self) -> bool {
+        self.ctx.status.tailscale_up
+    }
+    fn get_current_status() -> Context {
         let status: tailscale::Status = tailscale::get_status().unwrap();
         let ctx = Context {
             ip: status.this_machine.ips[0].clone(),
@@ -37,39 +44,47 @@ impl MyTray {
             status,
         };
         assert_eq!(ctx.pkexec, PathBuf::from("/usr/bin/pkexec"));
-
-        MyTray {
-            enabled: ctx.status.tailscale_up,
-            ctx,
-        }
+        ctx
     }
-
-    fn do_service_link(&self, verb: &str) {
+    fn update_status(&mut self) {
+        self.ctx = Self::get_current_status();
+    }
+    fn do_service_link(&mut self, verb: &str) {
         // consider using https://stackoverflow.com/a/66292796/554150
         // or async? https://rust-lang.github.io/async-book/03_async_await/01_chapter.html
         let child = Command::new("/usr/bin/pkexec")
             .arg("tailscale")
-            .arg(verb.clone())
+            .arg(verb)
             .stdout(Stdio::piped())
             .spawn()
             .expect("failed to execute process");
 
         let output = child.wait_with_output().expect("Failed to read stdout");
-        info!("{}", String::from_utf8_lossy(&output.stdout));
-        // expect_notify(title="Tailscale", message=output);
-
-        let _result = Notification::new()
-            .summary(format!("Connection {}", verb).as_str())
-            .body("Tailscale service connected")
-            .icon("info")
-            .show();
+        info!(
+            "link {}: [{}]{}",
+            &verb,
+            output.status,
+            String::from_utf8_lossy(&output.stdout)
+        );
+        if output.status.success() {
+            let verb_result = if verb.eq("up") {
+                "connected"
+            } else {
+                "disconnected"
+            };
+            let _result = Notification::new()
+                .summary(format!("Connection {}", verb).as_str())
+                .body(format!("Tailscale service {verb_result}").as_str())
+                .icon("info")
+                .show();
+            self.update_status();
+        }
     }
     fn pkexec_found(&self) -> bool {
         // let permissions = pkexec_bin.metadata()?.permissions();
         // let is_executable = permissions.mode() & 0o111 != 0;
         self.ctx.pkexec.is_file()
     }
-
     fn copy_peer_ip(peer_ip: &str, notif_title: &str) {
         if peer_ip.is_empty() {
             debug!("no ip");
@@ -97,7 +112,7 @@ impl Tray for MyTray {
         "Tailscale Tray".into()
     }
     fn tool_tip(&self) -> ToolTip {
-        let state = if self.enabled {
+        let state = if self.enabled() {
             "Connected"
         } else {
             "Disconnected"
@@ -110,7 +125,7 @@ impl Tray for MyTray {
         }
     }
     fn icon_name(&self) -> String {
-        if self.enabled {
+        if self.enabled() {
             "tailscale-online".into()
         } else {
             "tailscale-offline".into()
@@ -118,7 +133,7 @@ impl Tray for MyTray {
     }
     fn icon_pixmap(&self) -> Vec<Icon> {
         // TODO: fix setting icon
-        svg::load_icon(self.enabled)
+        svg::load_icon(self.enabled())
     }
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
@@ -148,7 +163,7 @@ impl Tray for MyTray {
             StandardItem {
                 label: "Connect".into(),
                 icon_name: "network-transmit-receive".into(),
-                enabled: !self.enabled,
+                enabled: !self.enabled(),
                 visible: pkexec_exist,
                 activate: Box::new(|this: &mut Self| this.do_service_link("up")),
                 ..Default::default()
@@ -157,7 +172,7 @@ impl Tray for MyTray {
             StandardItem {
                 label: "Disconnect".into(),
                 icon_name: "network-offline".into(),
-                enabled: self.enabled,
+                enabled: self.enabled(),
                 visible: pkexec_exist,
                 activate: Box::new(|this: &mut Self| this.do_service_link("down")),
                 ..Default::default()
@@ -219,6 +234,10 @@ impl Tray for MyTray {
     fn watcher_offine(&self) -> bool {
         info!("Wathcer offline, shutdown the tray.");
         false
+    }
+
+    fn id(&self) -> String {
+        "mytray".to_string()
     }
 }
 
