@@ -1,0 +1,22 @@
+name: Build with Cargo
+
+on:
+  push:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get build dependencies
+        run: sudo apt install libxcb1 libdbus-1-dev pkg-config
+
+      - name: Build
+        run: cargo build --verbose
