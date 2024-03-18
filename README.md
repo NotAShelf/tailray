@@ -1,9 +1,7 @@
-# tailscale-tray-rs
+# tailray
 
-Reinventing tailscale-systray in Rust.
+An implementation of tailscale-systray in Rust.
 
-## Install
+## Hacking
 
-```
-cargo install --git https://github.com/dieterplex/supreme-octo-fortnight.git
-```
+Simply run `nix develop` in the project root.
