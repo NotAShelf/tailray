@@ -1,6 +1,6 @@
 use crate::tailscale::dns;
 use crate::tailscale::utils::{Machine, User};
-use crate::tray::Context;
+use crate::tray::menu::Context;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, process::Command};
 use which::which;

@@ -11,7 +11,7 @@ fn main() {
     env_logger::init();
 
     // start the tray service
-    TrayService::new(crate::tray::SysTray::new()).spawn();
+    TrayService::new(crate::tray::menu::SysTray::new()).spawn();
 
     // keep the main thread alive
     loop {
