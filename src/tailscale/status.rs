@@ -42,17 +42,19 @@ pub fn get_status_json() -> String {
 }
 
 pub fn get_status() -> Result<Status, serde_json::Error> {
-    let mut st: Status = serde_json::from_str(get_status_json().as_str())?;
-    let dnssuffix = st.magic_dnssuffix.to_owned();
-    st.tailscale_up = match st.backend_state.as_str() {
+    let mut status: Status = serde_json::from_str(get_status_json().as_str())?;
+    let dnssuffix = status.magic_dnssuffix.to_owned();
+    status.tailscale_up = match status.backend_state.as_str() {
         "Running" => true,
         "Stopped" => false,
         _ => false,
     };
 
-    dns::dns_or_quote_hostname(&mut st.this_machine, &dnssuffix);
-    st.peers
+    dns::dns_or_quote_hostname(&mut status.this_machine, &dnssuffix);
+    status
+        .peers
         .values_mut()
         .for_each(|m: &mut Machine| dns::dns_or_quote_hostname(m, &dnssuffix));
-    Ok(st)
+
+    Ok(status)
 }

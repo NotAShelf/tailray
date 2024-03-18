@@ -1,4 +1,4 @@
-use crate::pkexec::{get_pkexec_path, pkexec_found};
+use crate::pkexec::{get_pkexec_path, should_elevate_perms};
 use crate::svg::renderer::ResvgRenderer;
 use crate::tailscale::peer::copy_peer_ip;
 use crate::tailscale::status::{get_current_status, Status};
@@ -46,19 +46,34 @@ impl SysTray {
 
     fn do_service_link(&mut self, verb: &str) {
         let pkexec_path = get_pkexec_path();
+        let elevate = should_elevate_perms();
+        let command = if elevate {
+            info!("Elevating permissions for pkexec.");
+            Command::new(pkexec_path)
+                .arg("tailscale")
+                .arg(verb)
+                .stdout(Stdio::piped())
+                .spawn()
+        } else {
+            Command::new("tailscale")
+                .arg(verb)
+                .stdout(Stdio::piped())
+                .spawn()
+        };
 
-        // TODO: consider using https://stackoverflow.com/a/66292796/554150
-        // or async? https://rust-lang.github.io/async-book/03_async_await/01_chapter.html
-        let child = Command::new(pkexec_path)
-            .arg("tailscale")
-            .arg(verb)
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("Failed to execute process");
+        // Check if command was successfully created
+        let command = match command {
+            Ok(cmd) => cmd,
+            Err(err) => {
+                // Handle error appropriately, e.g., log and return early or panic
+                panic!("Failed to execute process: {:?}", err);
+            }
+        };
 
-        let output = child.wait_with_output().expect("Failed to read stdout");
+        let output = command.wait_with_output().expect("Failed to read stdout");
+
         info!(
-            "link {}: [{}]{}",
+            "Link {}: [{}]{}",
             &verb,
             output.status,
             String::from_utf8_lossy(&output.stdout)
@@ -70,11 +85,15 @@ impl SysTray {
             } else {
                 "disconnected"
             };
+
+            // send notification through dbus
             let _result = Notification::new()
                 .summary(format!("Connection {}", verb).as_str())
                 .body(format!("Tailscale service {verb_result}").as_str())
                 .icon("info")
                 .show();
+
+            // update status
             self.update_status();
         }
     }
@@ -116,10 +135,6 @@ impl Tray for SysTray {
     }
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
-        // TODO: build pkexec_exists into pkexec_path by failing early
-        // if pkexec cannot be found
-        let pkexec_path = get_pkexec_path();
-        let pkexec_exist: bool = pkexec_found(&pkexec_path);
         let my_ip = self.ctx.ip.clone();
 
         let mut my_sub = Vec::new();
@@ -147,7 +162,7 @@ impl Tray for SysTray {
                 label: "Connect".into(),
                 icon_name: "network-transmit-receive".into(),
                 enabled: !self.enabled(),
-                visible: pkexec_exist,
+                visible: true,
                 activate: Box::new(|this: &mut Self| this.do_service_link("up")),
                 ..Default::default()
             }
@@ -156,7 +171,7 @@ impl Tray for SysTray {
                 label: "Disconnect".into(),
                 icon_name: "network-offline".into(),
                 enabled: self.enabled(),
-                visible: pkexec_exist,
+                visible: true,
                 activate: Box::new(|this: &mut Self| this.do_service_link("down")),
                 ..Default::default()
             }
