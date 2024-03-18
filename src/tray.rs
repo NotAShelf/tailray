@@ -1,15 +1,16 @@
-use crate::clipboard::{copy_to_clipboard, get_from_clipboard};
 use crate::pkexec::{get_pkexec_path, pkexec_found};
 use crate::svg::utils::ResvgRenderer;
+use crate::tailscale::peer::copy_peer_ip;
+use crate::tailscale::status::{get_current_status, Status};
 use crate::tailscale::utils::PeerKind;
-use crate::tailscale::utils::{get_status, Status};
 
 use ksni::{
     self,
     menu::{StandardItem, SubMenu},
     Icon, MenuItem, ToolTip, Tray,
 };
-use log::{error, info};
+
+use log::info;
 use notify_rust::Notification;
 use std::{
     path::PathBuf,
@@ -31,7 +32,7 @@ pub struct SysTray {
 impl SysTray {
     pub fn new() -> Self {
         SysTray {
-            ctx: Self::get_current_status(),
+            ctx: get_current_status(),
         }
     }
 
@@ -39,21 +40,8 @@ impl SysTray {
         self.ctx.status.tailscale_up
     }
 
-    fn get_current_status() -> Context {
-        let status: Status = get_status().unwrap();
-        let pkexec_path = get_pkexec_path();
-        let ctx = Context {
-            ip: status.this_machine.ips[0].clone(),
-            pkexec: pkexec_path.clone(),
-            status,
-        };
-
-        assert_eq!(ctx.pkexec, pkexec_path);
-        ctx
-    }
-
     fn update_status(&mut self) {
-        self.ctx = Self::get_current_status();
+        self.ctx = get_current_status();
     }
 
     fn do_service_link(&mut self, verb: &str) {
@@ -88,50 +76,6 @@ impl SysTray {
                 .icon("info")
                 .show();
             self.update_status();
-        }
-    }
-
-    fn check_peer_ip(peer_ip: &str) {
-        if peer_ip.is_empty() {
-            error!("No peer IP.")
-        } else {
-            info!("Peer IP: {}", peer_ip);
-        }
-    }
-
-    fn copy_peer_ip(peer_ip: &str, notif_title: &str) {
-        Self::check_peer_ip(peer_ip);
-
-        match copy_to_clipboard(peer_ip) {
-            Ok(_) => {
-                // Get IP from clipboard to verify
-                match get_from_clipboard() {
-                    Ok(clip_ip) => {
-                        // log success
-                        info!("Copied IP address {} to the Clipboard", clip_ip);
-
-                        // send a notification through dbus
-                        let body = format!("Copied IP address {} to the Clipboard", clip_ip);
-                        let _result = Notification::new()
-                            .summary(notif_title)
-                            .body(&body)
-                            .icon("info")
-                            .show();
-                    }
-
-                    Err(e) => {
-                        let message = "Failed to get IP from clipboard";
-                        error!("{}: {}", message, e);
-
-                        let _result = Notification::new()
-                            .summary(notif_title)
-                            .body(&message)
-                            .icon("error")
-                            .show();
-                    }
-                }
-            }
-            Err(e) => error!("Failed to copy IP to clipboard: {}", e),
         }
     }
 }
@@ -188,7 +132,7 @@ impl Tray for SysTray {
             let peer_title = title.to_owned();
             let menu = MenuItem::Standard(StandardItem {
                 label: format!("{}\t({})", title, ip),
-                activate: Box::new(move |_: &mut Self| Self::copy_peer_ip(&peer_ip, &peer_title)),
+                activate: Box::new(move |_: &mut Self| copy_peer_ip(&peer_ip, &peer_title)),
                 ..Default::default()
             });
             sub.push(menu);
@@ -218,7 +162,7 @@ impl Tray for SysTray {
                     "This device: {} ({})",
                     self.ctx.status.this_machine.display_name, self.ctx.ip
                 ),
-                activate: Box::new(move |_| Self::copy_peer_ip(&my_ip, "This device")),
+                activate: Box::new(move |_| copy_peer_ip(&my_ip, "This device")),
                 ..Default::default()
             }
             .into(),

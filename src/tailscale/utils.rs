@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     fmt::{Display, Formatter},
-    process::Command,
 };
 
 #[derive(Debug)]
@@ -10,11 +9,13 @@ pub enum PeerKind {
     DNSName(String),
     HostName(String),
 }
+
 impl Default for PeerKind {
     fn default() -> Self {
         PeerKind::HostName("default".to_owned())
     }
 }
+
 impl Display for PeerKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match &self {
@@ -29,14 +30,15 @@ pub struct Machine {
     #[serde(skip)]
     pub display_name: PeerKind,
     #[serde(rename(deserialize = "DNSName"))]
-    dns_name: String,
+    pub dns_name: String,
     #[serde(rename(deserialize = "HostName"))]
-    hostname: String,
+    pub hostname: String,
     #[serde(rename(deserialize = "TailscaleIPs"))]
     pub ips: Vec<String>,
 }
+
 #[derive(Serialize, Deserialize, Debug)]
-struct User {
+pub struct User {
     #[serde(rename(deserialize = "ID"))]
     id: u64,
     #[serde(rename(deserialize = "LoginName"))]
@@ -48,56 +50,8 @@ struct User {
     #[serde(rename(deserialize = "Roles"))]
     roles: Vec<String>,
 }
-#[derive(Serialize, Deserialize, Debug)]
 
-pub struct Status {
-    // TODO: mutex
-    #[serde(skip)]
-    pub tailscale_up: bool,
-    #[serde(rename(deserialize = "BackendState"))]
-    backend_state: String,
-    #[serde(rename(deserialize = "Self"))]
-    pub this_machine: Machine,
-    #[serde(rename(deserialize = "MagicDNSSuffix"))]
-    magic_dnssuffix: String,
-    #[serde(rename(deserialize = "Peer"))]
-    pub peers: HashMap<String, Machine>,
-    #[serde(rename(deserialize = "User"))]
-    user: HashMap<String, User>,
-}
-
-pub fn get_status() -> Result<Status, serde_json::Error> {
-    let mut st: Status = serde_json::from_str(get_json().as_str())?;
-    let dnssuffix = st.magic_dnssuffix.to_owned();
-    st.tailscale_up = match st.backend_state.as_str() {
-        "Running" => true,
-        "Stopped" => false,
-        _ => false,
-    };
-    dns_or_quote_hostname(&mut st.this_machine, &dnssuffix);
-    st.peers
-        .values_mut()
-        .for_each(|m: &mut Machine| dns_or_quote_hostname(m, &dnssuffix));
-    Ok(st)
-}
-
-fn get_json() -> String {
-    let output = Command::new("tailscale")
-        .arg("status")
-        .arg("--json")
-        .output()
-        .expect("Fetch tailscale status fail.");
-    String::from_utf8(output.stdout).expect("Unable to convert status output string.")
-}
-
-fn dns_or_quote_hostname(m: &mut Machine, dns_suffix: &str) {
-    let base_name = trim_suffix(&m.dns_name, dns_suffix);
-    m.display_name = match base_name {
-        n if n.is_empty() => PeerKind::DNSName(sanitize_hostname(m.hostname.as_str())),
-        base => PeerKind::HostName(base),
-    }
-}
-fn has_suffix(name: &str, suffix: &str) -> bool {
+pub fn has_suffix(name: &str, suffix: &str) -> bool {
     let name = name.trim_end_matches('.');
     let mut suffix = suffix.trim_end_matches('.');
     suffix = suffix.trim_start_matches('.');
@@ -105,7 +59,7 @@ fn has_suffix(name: &str, suffix: &str) -> bool {
     name_base.len() < name.len() && name_base.ends_with('.')
 }
 
-fn trim_suffix(name: &str, suffix: &str) -> String {
+pub fn trim_suffix(name: &str, suffix: &str) -> String {
     let mut new_name = name;
     if has_suffix(name, suffix) {
         new_name = new_name.trim_end_matches('.');
@@ -115,7 +69,7 @@ fn trim_suffix(name: &str, suffix: &str) -> String {
     new_name.trim_end_matches('.').to_string()
 }
 
-fn sanitize_hostname(hostname: &str) -> String {
+pub fn sanitize_hostname(hostname: &str) -> String {
     const MAX_LABEL_LEN: usize = 63;
     let mut sb = "".to_string();
     let hostname = hostname
