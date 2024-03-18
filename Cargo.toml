@@ -8,7 +8,7 @@ authors = [
 ]
 
 [dependencies]
-clipboard = "0.5"
+arboard = {version = "3.3.2", features = ["wl-clipboard-rs", "wayland-data-control"]}
 env_logger = "0.11"
 fontdb = "0.16"
 ksni = "0.2"
@@ -19,4 +19,4 @@ resvg = "0.40.0"
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 which = "6.0"
-xcb = "1.3.0"
+wl-clipboard-rs = "0.8"
