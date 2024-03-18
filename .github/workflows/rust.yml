@@ -16,7 +16,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Get build dependencies
-        run: sudo apt install libxcb1 libdbus-1-dev pkg-config
+        run: |
+          sudo apt install \
+            pkg-config libdbus-1-dev libxcb1 \
+            libxcb-shape0-dev libxcb-xfixes0-dev
 
       - name: Build
         run: cargo build --verbose
