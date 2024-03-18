@@ -1,1 +1,5 @@
+# Cargo
 target/
+
+# Nix
+result/
