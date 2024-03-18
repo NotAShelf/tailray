@@ -36,7 +36,7 @@ pub fn copy_peer_ip(peer_ip: &str, notif_title: &str) {
 
                     let _result = Notification::new()
                         .summary(notif_title)
-                        .body(&message)
+                        .body(message)
                         .icon("error")
                         .show();
                 }

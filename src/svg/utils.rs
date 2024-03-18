@@ -42,7 +42,7 @@ impl ResvgRenderer {
         };
 
         match enabled {
-            true => vec![renderer.to_icon(&SVG_DATA)],
+            true => vec![renderer.to_icon(SVG_DATA)],
             false => vec![renderer.to_icon(&SVG_DATA.replace("1.0", "0.4"))],
         }
     }
