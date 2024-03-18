@@ -1,5 +1,5 @@
 use crate::pkexec::{get_pkexec_path, pkexec_found};
-use crate::svg::utils::load_icon;
+use crate::svg::utils::ResvgRenderer;
 use crate::tailscale::utils::PeerKind;
 use crate::tailscale::utils::{get_status, Status};
 
@@ -152,7 +152,7 @@ impl Tray for SysTray {
 
     fn icon_pixmap(&self) -> Vec<Icon> {
         // TODO: fix setting icon
-        load_icon(self.enabled())
+        ResvgRenderer::load_icon(self.enabled())
     }
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
