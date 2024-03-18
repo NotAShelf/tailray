@@ -81,8 +81,20 @@ impl SysTray {
 }
 
 impl Tray for SysTray {
+    fn icon_name(&self) -> String {
+        if self.enabled() {
+            "tailscale-online".into()
+        } else {
+            "tailscale-offline".into()
+        }
+    }
+
+    fn icon_pixmap(&self) -> Vec<Icon> {
+        ResvgRenderer::load_icon(self.enabled())
+    }
+
     fn title(&self) -> String {
-        "Tailscale Tray".into()
+        "Tailray".into()
     }
 
     fn tool_tip(&self) -> ToolTip {
@@ -93,6 +105,9 @@ impl Tray for SysTray {
         };
 
         ToolTip {
+            // FIXME: the icon is still not showing up
+            // ags returns:
+            // "Error: can't assign "tailscale-online" as icon, it is not a file nor a named icon"
             icon_name: Default::default(),
             icon_pixmap: Default::default(),
             title: format!("Tailscale: {}", state),
@@ -100,20 +115,9 @@ impl Tray for SysTray {
         }
     }
 
-    fn icon_name(&self) -> String {
-        if self.enabled() {
-            "tailscale-online".into()
-        } else {
-            "tailscale-offline".into()
-        }
-    }
-
-    fn icon_pixmap(&self) -> Vec<Icon> {
-        // TODO: fix setting icon
-        ResvgRenderer::load_icon(self.enabled())
-    }
-
     fn menu(&self) -> Vec<MenuItem<Self>> {
+        // TODO: build pkexec_exists into pkexec_path by failing early
+        // if pkexec cannot be found
         let pkexec_path = get_pkexec_path();
         let pkexec_exist: bool = pkexec_found(&pkexec_path);
         let my_ip = self.ctx.ip.clone();
@@ -128,6 +132,7 @@ impl Tray for SysTray {
                 PeerKind::DNSName(_) => &mut serv_sub,
                 PeerKind::HostName(_) => &mut my_sub,
             };
+
             let peer_ip = ip.to_owned();
             let peer_title = title.to_owned();
             let menu = MenuItem::Standard(StandardItem {
@@ -205,15 +210,15 @@ impl Tray for SysTray {
     }
 
     fn watcher_online(&self) {
-        info!("Wathcer online.");
+        info!("Watcher online.");
     }
 
     fn watcher_offine(&self) -> bool {
-        info!("Wathcer offline, shutdown the tray.");
+        info!("Watcher offline, shutting down the system Tray.");
         false
     }
 
     fn id(&self) -> String {
-        "mytray".to_string()
+        "tailray".to_string()
     }
 }
