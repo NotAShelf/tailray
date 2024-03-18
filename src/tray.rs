@@ -203,8 +203,7 @@ impl Tray for SysTray {
                 label: format!(
                     "This device: {} ({})",
                     self.ctx.status.this_machine.display_name, self.ctx.ip
-                )
-                .into(),
+                ),
                 activate: Box::new(move |_| Self::copy_peer_ip(&my_ip, "This device")),
                 ..Default::default()
             }

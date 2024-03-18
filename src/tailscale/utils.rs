@@ -98,21 +98,21 @@ fn dns_or_quote_hostname(m: &mut Machine, dns_suffix: &str) {
     }
 }
 fn has_suffix(name: &str, suffix: &str) -> bool {
-    let name = name.trim_end_matches(".");
-    let mut suffix = suffix.trim_end_matches(".");
-    suffix = suffix.trim_start_matches(".");
+    let name = name.trim_end_matches('.');
+    let mut suffix = suffix.trim_end_matches('.');
+    suffix = suffix.trim_start_matches('.');
     let name_base = name.trim_end_matches(suffix);
-    name_base.len() < name.len() && name_base.ends_with(".")
+    name_base.len() < name.len() && name_base.ends_with('.')
 }
 
 fn trim_suffix(name: &str, suffix: &str) -> String {
     let mut new_name = name;
-    if has_suffix(name, &suffix) {
-        new_name = new_name.trim_end_matches(".");
-        let suffix = suffix.trim_start_matches(".").trim_end_matches(".");
+    if has_suffix(name, suffix) {
+        new_name = new_name.trim_end_matches('.');
+        let suffix = suffix.trim_start_matches('.').trim_end_matches('.');
         new_name = new_name.trim_end_matches(suffix);
     }
-    new_name.trim_end_matches(".").to_string()
+    new_name.trim_end_matches('.').to_string()
 }
 
 fn sanitize_hostname(hostname: &str) -> String {
@@ -132,13 +132,13 @@ fn sanitize_hostname(hostname: &str) -> String {
         if chars.nth(start).unwrap().is_alphanumeric() {
             break;
         }
-        start = start + 1;
+        start += 1;
     }
     while start < end {
         if chars.nth(end - 1).unwrap().is_alphanumeric() {
             break;
         }
-        end = end - 1;
+        end -= 1;
     }
     let seperators: HashMap<char, bool> =
         HashMap::from([(' ', true), ('.', true), ('@', true), ('_', true)]);

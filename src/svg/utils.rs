@@ -35,10 +35,6 @@ impl ResvgRenderer {
     }
 
     pub fn load_icon(enabled: bool) -> Vec<Icon> {
-        let svg_data = std::fs::read_to_string(SVG_DATA).unwrap_or_else(|e| {
-            panic!("Failed to read SVG: {}", e);
-        });
-
         let mut renderer = ResvgRenderer {
             options: Options::default(),
             transform: Transform::default(),
@@ -46,8 +42,8 @@ impl ResvgRenderer {
         };
 
         match enabled {
-            true => vec![renderer.to_icon(&svg_data)],
-            false => vec![renderer.to_icon(&svg_data.replace("1.0", "0.4"))],
+            true => vec![renderer.to_icon(&SVG_DATA)],
+            false => vec![renderer.to_icon(&SVG_DATA.replace("1.0", "0.4"))],
         }
     }
 }
