@@ -1,18 +1,17 @@
+use ksni::Icon;
 use resvg::{
     self,
     tiny_skia::{Pixmap, Transform},
     usvg::{Options, Tree},
 };
 
-use ksni::Icon;
+const SVG_DATA: &str = include_str!("assets/tailscale.svg");
 
 pub struct ResvgRenderer {
     options: Options,
     transform: Transform,
     font_db: fontdb::Database,
 }
-
-const SVG_DATA: &str = include_str!("assets/tailscale.svg");
 
 impl ResvgRenderer {
     pub fn to_icon(&mut self, svg_str: &str) -> Icon {

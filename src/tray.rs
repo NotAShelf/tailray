@@ -1,5 +1,5 @@
 use crate::pkexec::{get_pkexec_path, pkexec_found};
-use crate::svg::utils::ResvgRenderer;
+use crate::svg::renderer::ResvgRenderer;
 use crate::tailscale::peer::copy_peer_ip;
 use crate::tailscale::status::{get_current_status, Status};
 use crate::tailscale::utils::PeerKind;
