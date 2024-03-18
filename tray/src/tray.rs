@@ -1,4 +1,5 @@
-use crate::svg;
+use crate::pkexec::{get_pkexec_path, pkexec_found};
+use crate::svg::utils::load_icon;
 use crate::tailscale::utils::PeerKind;
 use crate::tailscale::utils::{get_status, Status};
 
@@ -8,13 +9,12 @@ use ksni::{
     menu::{StandardItem, SubMenu},
     Icon, MenuItem, ToolTip, Tray,
 };
-use log::{debug, error, info};
+use log::{error, info};
 use notify_rust::Notification;
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
 };
-use which::which;
 
 #[derive(Debug)]
 pub struct Context {
@@ -39,21 +39,15 @@ impl SysTray {
         self.ctx.status.tailscale_up
     }
 
-    fn get_pkexec_path() -> PathBuf {
-        match which("pkexec") {
-            Ok(path) => path,
-            Err(_) => panic!("pkexec not found in PATH"),
-        }
-    }
-
     fn get_current_status() -> Context {
         let status: Status = get_status().unwrap();
-        let pkexec_path = Self::get_pkexec_path();
+        let pkexec_path = get_pkexec_path();
         let ctx = Context {
             ip: status.this_machine.ips[0].clone(),
-            pkexec: which("pkexec").unwrap(),
+            pkexec: pkexec_path.clone(),
             status,
         };
+
         assert_eq!(ctx.pkexec, pkexec_path);
         ctx
     }
@@ -63,9 +57,11 @@ impl SysTray {
     }
 
     fn do_service_link(&mut self, verb: &str) {
-        // consider using https://stackoverflow.com/a/66292796/554150
+        let pkexec_path = get_pkexec_path();
+
+        // TODO: consider using https://stackoverflow.com/a/66292796/554150
         // or async? https://rust-lang.github.io/async-book/03_async_await/01_chapter.html
-        let child = Command::new("/usr/bin/pkexec")
+        let child = Command::new(pkexec_path)
             .arg("tailscale")
             .arg(verb)
             .stdout(Stdio::piped())
@@ -93,28 +89,34 @@ impl SysTray {
             self.update_status();
         }
     }
-    fn pkexec_found(&self) -> bool {
-        // let permissions = pkexec_bin.metadata()?.permissions();
-        // let is_executable = permissions.mode() & 0o111 != 0;
-        self.ctx.pkexec.is_file()
-    }
-    fn copy_peer_ip(peer_ip: &str, notif_title: &str) {
+
+    fn check_peer_ip(peer_ip: &str) {
         if peer_ip.is_empty() {
-            debug!("no ip");
-            return;
+            error!("No peer IP.")
+        } else {
+            info!("Peer IP: {}", peer_ip);
         }
+    }
+
+    fn copy_peer_ip(peer_ip: &str, notif_title: &str) {
+        Self::check_peer_ip(peer_ip);
+
         let mut cctx: ClipboardContext =
-            ClipboardProvider::new().expect("Clipboard unable to access.");
+            ClipboardProvider::new().expect("Unable to access IP to clipboard.");
         match cctx.set_contents(peer_ip.to_owned()) {
-            Ok(()) => {
-                let clip_ip = cctx.get_contents().unwrap();
-                info!("copy ip: {:?}", clip_ip);
+            Ok(_) => {
+                let clip_ip = cctx.get_contents().unwrap_or_default();
+                let notification_message =
+                    format!("Copied IP address {} to the Clipboard", clip_ip);
+                info!("Copy ip: {:?}", clip_ip);
                 let _result = Notification::new()
                     .summary(notif_title)
-                    .body(format!("Copy the IP address {clip_ip} to the Clipboard").as_str())
+                    .body(&notification_message)
                     .icon("info")
                     .show();
             }
+
+            // unable to copy to clipboard
             Err(_) => error!("Unable to copy ip to clipboard."),
         }
     }
@@ -124,12 +126,14 @@ impl Tray for SysTray {
     fn title(&self) -> String {
         "Tailscale Tray".into()
     }
+
     fn tool_tip(&self) -> ToolTip {
         let state = if self.enabled() {
             "Connected"
         } else {
             "Disconnected"
         };
+
         ToolTip {
             icon_name: Default::default(),
             icon_pixmap: Default::default(),
@@ -137,6 +141,7 @@ impl Tray for SysTray {
             description: Default::default(),
         }
     }
+
     fn icon_name(&self) -> String {
         if self.enabled() {
             "tailscale-online".into()
@@ -144,13 +149,15 @@ impl Tray for SysTray {
             "tailscale-offline".into()
         }
     }
+
     fn icon_pixmap(&self) -> Vec<Icon> {
         // TODO: fix setting icon
-        svg::load_icon(self.enabled())
+        load_icon(self.enabled())
     }
 
     fn menu(&self) -> Vec<MenuItem<Self>> {
-        let pkexec_exist: bool = self.pkexec_found();
+        let pkexec_path = get_pkexec_path();
+        let pkexec_exist: bool = pkexec_found(&pkexec_path);
         let my_ip = self.ctx.ip.clone();
 
         let mut my_sub = Vec::new();

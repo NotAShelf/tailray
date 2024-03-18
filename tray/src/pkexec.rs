@@ -1,7 +1,13 @@
+use std::path::PathBuf;
 use which::which;
 
-// get the path of pkexec command and return it as a string
-// in a shape that can be used in static str or constants
-pub fn get_pkexec_path() -> String {
-    which("pkexec").unwrap().to_str().unwrap().to_string()
+pub fn get_pkexec_path() -> PathBuf {
+    match which("pkexec") {
+        Ok(path) => path,
+        Err(_) => panic!("pkexec not found in PATH"),
+    }
+}
+
+pub fn pkexec_found(pkexec_path: &PathBuf) -> bool {
+    pkexec_path.is_file()
 }
