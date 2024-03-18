@@ -106,7 +106,7 @@ fn has_suffix(name: &str, suffix: &str) -> bool {
 }
 
 fn trim_suffix(name: &str, suffix: &str) -> String {
-    let mut new_name = name.clone();
+    let mut new_name = name;
     if has_suffix(name, &suffix) {
         new_name = new_name.trim_end_matches(".");
         let suffix = suffix.trim_start_matches(".").trim_end_matches(".");
