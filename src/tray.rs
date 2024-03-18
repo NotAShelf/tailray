@@ -1,9 +1,9 @@
+use crate::clipboard::{copy_to_clipboard, get_from_clipboard};
 use crate::pkexec::{get_pkexec_path, pkexec_found};
 use crate::svg::utils::ResvgRenderer;
 use crate::tailscale::utils::PeerKind;
 use crate::tailscale::utils::{get_status, Status};
 
-use clipboard::{ClipboardContext, ClipboardProvider};
 use ksni::{
     self,
     menu::{StandardItem, SubMenu},
@@ -66,7 +66,7 @@ impl SysTray {
             .arg(verb)
             .stdout(Stdio::piped())
             .spawn()
-            .expect("failed to execute process");
+            .expect("Failed to execute process");
 
         let output = child.wait_with_output().expect("Failed to read stdout");
         info!(
@@ -75,6 +75,7 @@ impl SysTray {
             output.status,
             String::from_utf8_lossy(&output.stdout)
         );
+
         if output.status.success() {
             let verb_result = if verb.eq("up") {
                 "connected"
@@ -101,23 +102,36 @@ impl SysTray {
     fn copy_peer_ip(peer_ip: &str, notif_title: &str) {
         Self::check_peer_ip(peer_ip);
 
-        let mut cctx: ClipboardContext =
-            ClipboardProvider::new().expect("Unable to access IP to clipboard.");
-        match cctx.set_contents(peer_ip.to_owned()) {
+        match copy_to_clipboard(peer_ip) {
             Ok(_) => {
-                let clip_ip = cctx.get_contents().unwrap_or_default();
-                let notification_message =
-                    format!("Copied IP address {} to the Clipboard", clip_ip);
-                info!("Copy ip: {:?}", clip_ip);
-                let _result = Notification::new()
-                    .summary(notif_title)
-                    .body(&notification_message)
-                    .icon("info")
-                    .show();
-            }
+                // Get IP from clipboard to verify
+                match get_from_clipboard() {
+                    Ok(clip_ip) => {
+                        // log success
+                        info!("Copied IP address {} to the Clipboard", clip_ip);
 
-            // unable to copy to clipboard
-            Err(_) => error!("Unable to copy ip to clipboard."),
+                        // send a notification through dbus
+                        let body = format!("Copied IP address {} to the Clipboard", clip_ip);
+                        let _result = Notification::new()
+                            .summary(notif_title)
+                            .body(&body)
+                            .icon("info")
+                            .show();
+                    }
+
+                    Err(e) => {
+                        let message = "Failed to get IP from clipboard";
+                        error!("{}: {}", message, e);
+
+                        let _result = Notification::new()
+                            .summary(notif_title)
+                            .body(&message)
+                            .icon("error")
+                            .show();
+                    }
+                }
+            }
+            Err(e) => error!("Failed to copy IP to clipboard: {}", e),
         }
     }
 }

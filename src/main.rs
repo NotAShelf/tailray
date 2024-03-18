@@ -1,3 +1,4 @@
+mod clipboard;
 mod pkexec;
 mod svg;
 mod tailscale;
