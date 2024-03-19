@@ -8,7 +8,11 @@
     pkgsForEach = nixpkgs.legacyPackages;
   in {
     devShells = forEachSystem (system: {
-      default = pkgsForEach.${system}.callPackage ./shell.nix {};
+      default = pkgsForEach.${system}.callPackage ./nix/shell.nix {};
+    });
+
+    packages = forEachSystem (system: {
+      default = pkgsForEach.${system}.callPackage ./nix/package.nix {};
     });
   };
 }
