@@ -228,7 +228,7 @@ impl Tray for SysTray {
         info!("Watcher online.");
     }
 
-    fn watcher_offine(&self) -> bool {
+    fn watcher_offline(&self) -> bool {
         info!("Watcher offline, shutting down the system Tray.");
         false
     }

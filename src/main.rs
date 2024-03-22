@@ -4,7 +4,7 @@ mod svg;
 mod tailscale;
 mod tray;
 
-use ksni::TrayService;
+use crate::tray::menu::SysTray;
 use std::thread::park;
 
 fn main() {
@@ -12,7 +12,10 @@ fn main() {
     env_logger::init();
 
     // start the tray service
-    TrayService::new(crate::tray::menu::SysTray::new()).spawn();
+    let handle = ksni::spawn(SysTray {
+        ctx: tailscale::status::get_current_status(),
+    })
+    .unwrap();
 
     // keep the main thread alive
     // NOTE: The documentation for park reads:
