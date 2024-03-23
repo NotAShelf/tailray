@@ -30,12 +30,6 @@ pub struct SysTray {
 }
 
 impl SysTray {
-    pub fn new() -> Self {
-        SysTray {
-            ctx: get_current_status(),
-        }
-    }
-
     fn enabled(&self) -> bool {
         self.ctx.status.tailscale_up
     }
@@ -110,6 +104,10 @@ impl Tray for SysTray {
 
     fn icon_pixmap(&self) -> Vec<Icon> {
         ResvgRenderer::load_icon(self.enabled())
+    }
+
+    fn id(&self) -> String {
+        env!("CARGO_PKG_NAME").into()
     }
 
     fn title(&self) -> String {
@@ -215,7 +213,7 @@ impl Tray for SysTray {
             .into(),
             MenuItem::Separator,
             StandardItem {
-                label: "Exit".into(),
+                label: "Exit Tailray".into(),
                 icon_name: "application-exit".into(),
                 activate: Box::new(|_| std::process::exit(0)),
                 ..Default::default()
@@ -228,12 +226,8 @@ impl Tray for SysTray {
         info!("Watcher online.");
     }
 
-    fn watcher_offine(&self) -> bool {
+    fn watcher_offline(&self) -> bool {
         info!("Watcher offline, shutting down the system Tray.");
         false
-    }
-
-    fn id(&self) -> String {
-        "tailray".to_string()
     }
 }
