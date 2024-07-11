@@ -74,11 +74,7 @@ impl SysTray {
         );
 
         if output.status.success() {
-            let verb_result = if verb.eq("up") {
-                "connected"
-            } else {
-                "disconnected"
-            };
+            let verb_result = if verb.eq("up") { "online" } else { "offline" };
 
             // send notification through dbus
             let _result = Notification::new()
