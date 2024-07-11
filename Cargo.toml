@@ -11,7 +11,7 @@ authors = [
 arboard = {version = "3.3.2", features = ["wl-clipboard-rs", "wayland-data-control"]}
 env_logger = "0.11"
 fontdb = "0.16"
-ksni = "0.2"
+ksni = {git="https://github.com/iovxw/ksni", branch="zbus" }
 log = "0.4"
 notify-rust = {version = "4.10", default_features = false, features = ["d"]}
 open = "5.1.2"
