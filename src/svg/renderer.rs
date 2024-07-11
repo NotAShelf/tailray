@@ -26,10 +26,16 @@ impl ResvgRenderer {
 
         resvg::render(&rtree, self.transform, &mut pixmap.as_mut());
 
+        let argb_data: Vec<u8> = pixmap
+            .take()
+            .chunks(4)
+            .flat_map(|rgba| [rgba[3], rgba[0], rgba[1], rgba[2]])
+            .collect();
+
         Icon {
-            width: pixmap.width() as i32,
-            height: pixmap.height() as i32,
-            data: pixmap.take(),
+            width: size.width().round() as i32,
+            height: size.height().round() as i32,
+            data: argb_data,
         }
     }
 
@@ -41,8 +47,14 @@ impl ResvgRenderer {
         };
 
         match enabled {
-            true => vec![renderer.to_icon(SVG_DATA)],
-            false => vec![renderer.to_icon(&SVG_DATA.replace("1.0", "0.4"))],
+            true => {
+                log::debug!("icon: Tailscale is enabled");
+                vec![renderer.to_icon(&SVG_DATA)]
+            }
+            false => {
+                log::debug!("icon: Tailscale is not enabled");
+                vec![renderer.to_icon(&SVG_DATA.replace("1.0", "0.4"))]
+            }
         }
     }
 }
