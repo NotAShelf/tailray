@@ -2,7 +2,7 @@ use ksni::Icon;
 use resvg::{
     self,
     tiny_skia::{Pixmap, Transform},
-    usvg::{Options, Tree},
+    usvg::{fontdb, Options, Tree},
 };
 
 const SVG_DATA: &str = include_str!("assets/tailscale.svg");

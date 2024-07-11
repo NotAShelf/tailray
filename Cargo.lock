@@ -1847,7 +1847,6 @@ version = "0.2.0"
 dependencies = [
  "arboard",
  "env_logger",
- "fontdb",
  "ksni",
  "log",
  "notify-rust",

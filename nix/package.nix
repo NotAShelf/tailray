@@ -25,15 +25,17 @@ in
         ]);
     };
 
-    cargoLock.lockFile = ../Cargo.lock;
+    cargoLock = {
+      lockFile = ../Cargo.lock;
+      outputHashes = {
+        "ksni-0.2.1" = "sha256-CKjOUGsqlMdgnNY6j29pP6S8wdZ73/v1dMyiIurlltI=";
+      };
+    };
 
     strictDeps = true;
 
+    nativeBuildInputs = [pkg-config python3];
     buildInputs = [dbus xorg.libxcb];
-    nativeBuildInputs = [
-      pkg-config
-      python3
-    ];
 
     meta = {
       description = "Rust implementation of tailscale-systray";
