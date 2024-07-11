@@ -220,7 +220,10 @@ impl Tray for SysTray {
             StandardItem {
                 label: "Admin Console…".into(),
                 activate: Box::new(|_| {
-                    if let Err(e) = open::that("https://login.tailscale.com/admin/machines") {
+                    let admin_url = std::env::var("TAILRAY_ADMIN_URL").unwrap_or_else(|_| {
+                        "https://login.tailscale.com/admin/machines".to_string()
+                    });
+                    if let Err(e) = open::that(admin_url.as_str()) {
                         eprintln!("failed to open admin console: {}", e);
                     }
                 }),
