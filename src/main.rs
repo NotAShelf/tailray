@@ -12,10 +12,11 @@ fn main() {
     env_logger::init();
 
     // start tray service
-    start_tray_service();
+    match start_tray_service() {
+        Ok(_) => println!("Tray service started successfully."),
+        Err(e) => eprintln!("Failed to start the tray service: {}", e),
+    }
 
     // keep the main thread alive
-    loop {
-        park();
-    }
+    park();
 }
