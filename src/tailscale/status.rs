@@ -2,7 +2,7 @@ use crate::tailscale::dns;
 use crate::tailscale::utils::{Machine, User};
 use crate::tray::menu::Context;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, process::Command};
+use std::{collections::HashMap, io, process::Command};
 use which::which;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -22,39 +22,45 @@ pub struct Status {
     user: HashMap<String, User>,
 }
 
-pub fn get_current_status() -> Context {
-    let status: Status = get_status().unwrap();
-
-    Context {
-        ip: status.this_machine.ips[0].clone(),
-        pkexec: which("pkexec").unwrap(),
-        status,
-    }
-}
-
-pub fn get_status_json() -> String {
-    let output = Command::new("tailscale")
-        .arg("status")
-        .arg("--json")
-        .output()
-        .expect("Fetch tailscale status fail.");
-    String::from_utf8(output.stdout).expect("Unable to convert status output string.")
-}
-
-pub fn get_status() -> Result<Status, serde_json::Error> {
-    let mut status: Status = serde_json::from_str(get_status_json().as_str())?;
+pub fn get_status() -> Result<Status, Box<dyn std::error::Error>> {
+    let status_json = get_status_json()?;
+    let mut status: Status = serde_json::from_str(&status_json)?;
     let dnssuffix = status.magic_dnssuffix.to_owned();
-    status.tailscale_up = match status.backend_state.as_str() {
-        "Running" => true,
-        "Stopped" => false,
-        _ => false,
-    };
+    status.tailscale_up = matches!(status.backend_state.as_str(), "Running");
 
     dns::dns_or_quote_hostname(&mut status.this_machine, &dnssuffix);
     status
         .peers
         .values_mut()
-        .for_each(|m: &mut Machine| dns::dns_or_quote_hostname(m, &dnssuffix));
+        .for_each(|m| dns::dns_or_quote_hostname(m, &dnssuffix));
 
     Ok(status)
+}
+
+pub fn get_current_status() -> Result<Context, Box<dyn std::error::Error>> {
+    let status = get_status()?;
+    let pkexec = which("pkexec")?;
+
+    Ok(Context {
+        ip: status.this_machine.ips[0].clone(),
+        pkexec,
+        status,
+    })
+}
+
+pub fn get_status_json() -> Result<String, Box<dyn std::error::Error>> {
+    let output = Command::new("tailscale")
+        .arg("status")
+        .arg("--json")
+        .output()?;
+
+    if output.status.success() {
+        let stdout = String::from_utf8(output.stdout)?;
+        Ok(stdout)
+    } else {
+        Err(Box::new(io::Error::new(
+            io::ErrorKind::Other,
+            "Failed to fetch tailscale status.",
+        )))
+    }
 }

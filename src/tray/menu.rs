@@ -13,6 +13,7 @@ use ksni::{
 use log::info;
 use notify_rust::Notification;
 use std::{
+    error::Error,
     path::PathBuf,
     process::{Command, Stdio},
 };
@@ -34,11 +35,12 @@ impl SysTray {
         self.ctx.status.tailscale_up
     }
 
-    fn update_status(&mut self) {
-        self.ctx = get_current_status();
+    fn update_status(&mut self) -> Result<(), Box<dyn Error>> {
+        self.ctx = get_current_status()?;
+        Ok(())
     }
 
-    fn do_service_link(&mut self, verb: &str) {
+    fn do_service_link(&mut self, verb: &str) -> Result<(), Box<dyn Error>> {
         let pkexec_path = get_pkexec_path();
         let elevate = should_elevate_perms();
         let command = if elevate {
@@ -55,16 +57,12 @@ impl SysTray {
                 .spawn()
         };
 
-        // Check if command was successfully created
         let command = match command {
             Ok(cmd) => cmd,
-            Err(err) => {
-                // Handle error appropriately, e.g., log and return early or panic
-                panic!("Failed to execute process: {:?}", err);
-            }
+            Err(err) => return Err(Box::new(err)),
         };
 
-        let output = command.wait_with_output().expect("Failed to read stdout");
+        let output = command.wait_with_output()?;
 
         info!(
             "Link {}: [{}]{}",
@@ -80,16 +78,16 @@ impl SysTray {
                 "disconnected"
             };
 
-            // send notification through dbus
-            let _result = Notification::new()
+            Notification::new()
                 .summary(format!("Connection {}", verb).as_str())
                 .body(format!("Tailscale service {verb_result}").as_str())
                 .icon("info")
-                .show();
+                .show()?;
 
-            // update status
-            self.update_status();
+            self.update_status()?;
         }
+
+        Ok(())
     }
 }
 
@@ -121,14 +119,14 @@ impl Tray for SysTray {
             "Disconnected"
         };
 
+        // FIXME: the icon is still not showing up
+        // ags returns:
+        // "Error: can't assign "tailscale-online" as icon, it is not a file nor a named icon"
         ToolTip {
-            // FIXME: the icon is still not showing up
-            // ags returns:
-            // "Error: can't assign "tailscale-online" as icon, it is not a file nor a named icon"
-            icon_name: Default::default(),
-            icon_pixmap: Default::default(),
             title: format!("Tailscale: {}", state),
             description: Default::default(),
+            icon_name: Default::default(),
+            icon_pixmap: Default::default(),
         }
     }
 
@@ -150,7 +148,11 @@ impl Tray for SysTray {
             let peer_title = title.to_owned();
             let menu = MenuItem::Standard(StandardItem {
                 label: format!("{}\t({})", title, ip),
-                activate: Box::new(move |_: &mut Self| copy_peer_ip(&peer_ip, &peer_title)),
+                activate: Box::new(move |_: &mut Self| {
+                    if let Err(e) = copy_peer_ip(&peer_ip, &peer_title) {
+                        eprintln!("failed to copy peer ip: {}", e);
+                    }
+                }),
                 ..Default::default()
             });
             sub.push(menu);
@@ -161,7 +163,11 @@ impl Tray for SysTray {
                 icon_name: "network-transmit-receive".into(),
                 enabled: !self.enabled(),
                 visible: true,
-                activate: Box::new(|this: &mut Self| this.do_service_link("up")),
+                activate: Box::new(|this: &mut Self| {
+                    if let Err(e) = this.do_service_link("up") {
+                        eprintln!("failed to connect: {}", e);
+                    }
+                }),
                 ..Default::default()
             }
             .into(),
@@ -170,7 +176,11 @@ impl Tray for SysTray {
                 icon_name: "network-offline".into(),
                 enabled: self.enabled(),
                 visible: true,
-                activate: Box::new(|this: &mut Self| this.do_service_link("down")),
+                activate: Box::new(|this: &mut Self| {
+                    if let Err(e) = this.do_service_link("down") {
+                        eprintln!("failed to disconnect: {}", e);
+                    }
+                }),
                 ..Default::default()
             }
             .into(),
@@ -180,12 +190,16 @@ impl Tray for SysTray {
                     "This device: {} ({})",
                     self.ctx.status.this_machine.display_name, self.ctx.ip
                 ),
-                activate: Box::new(move |_| copy_peer_ip(&my_ip, "This device")),
+                activate: Box::new(move |_| {
+                    if let Err(e) = copy_peer_ip(&my_ip, "This device") {
+                        eprintln!("failed to copy ip for this device: {}", e);
+                    }
+                }),
                 ..Default::default()
             }
             .into(),
             SubMenu {
-                label: "Network Devices:".into(),
+                label: "Network Devices".into(),
                 submenu: vec![
                     SubMenu {
                         label: "My Devices".into(),
@@ -206,7 +220,9 @@ impl Tray for SysTray {
             StandardItem {
                 label: "Admin Console…".into(),
                 activate: Box::new(|_| {
-                    open::that("https://login.tailscale.com/admin/machines").unwrap()
+                    if let Err(e) = open::that("https://login.tailscale.com/admin/machines") {
+                        eprintln!("failed to open admin console: {}", e);
+                    }
                 }),
                 ..Default::default()
             }
@@ -223,11 +239,11 @@ impl Tray for SysTray {
     }
 
     fn watcher_online(&self) {
-        info!("Watcher online.");
+        info!("watcher online.");
     }
 
     fn watcher_offline(&self) -> bool {
-        info!("Watcher offline, shutting down the system Tray.");
+        info!("watcher offline, shutting down the system tray.");
         false
     }
 }
