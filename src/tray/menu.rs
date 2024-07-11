@@ -191,7 +191,7 @@ impl Tray for SysTray {
                     self.ctx.status.this_machine.display_name, self.ctx.ip
                 ),
                 activate: Box::new(move |_| {
-                    if let Err(e) = copy_peer_ip(&my_ip, "This device") {
+                    if let Err(e) = copy_peer_ip(&my_ip, "Peer IP copied to clipboard!") {
                         eprintln!("failed to copy ip for this device: {}", e);
                     }
                 }),
