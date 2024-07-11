@@ -1,31 +1,29 @@
 {
   lib,
+  stdenv,
+  cargo,
   dbus,
+  meson,
+  ninja,
   python3,
   pkg-config,
+  rustc,
   rustPlatform,
   xorg,
   rev ? "dirty",
 }: let
   cargoToml = builtins.fromTOML (builtins.readFile ../Cargo.toml);
 in
-  rustPlatform.buildRustPackage {
+  stdenv.mkDerivation {
     pname = "tailray";
     version = "${cargoToml.package.version}-${rev}";
 
-    src = lib.fileset.toSource {
-      root = ../.;
-      fileset =
-        lib.fileset.intersection
-        (lib.fileset.fromSource (lib.sources.cleanSource ../.))
-        (lib.fileset.unions [
-          ../src
-          ../Cargo.toml
-          ../Cargo.lock
-        ]);
+    src = builtins.path {
+      name = "tailray";
+      path = ../.;
     };
 
-    cargoLock = {
+    cargoDeps = rustPlatform.importCargoLock {
       lockFile = ../Cargo.lock;
       outputHashes = {
         "ksni-0.2.1" = "sha256-CKjOUGsqlMdgnNY6j29pP6S8wdZ73/v1dMyiIurlltI=";
@@ -34,13 +32,25 @@ in
 
     strictDeps = true;
 
-    nativeBuildInputs = [pkg-config python3];
-    buildInputs = [dbus xorg.libxcb];
+    nativeBuildInputs = [
+      meson
+      ninja
+      pkg-config
+      rustPlatform.cargoSetupHook
+      cargo
+      rustc
+      python3
+    ];
+
+    buildInputs = [
+      dbus
+      xorg.libxcb
+    ];
 
     meta = {
       description = "Rust implementation of tailscale-systray";
       homepage = "https://github.com/notashelf/tailray";
-      license = lib.licenses.gpl3Plus;
+      license = lib.licenses.mit;
       mainProgram = "tailray";
       maintainers = with lib.maintainers; [NotAShelf];
     };
