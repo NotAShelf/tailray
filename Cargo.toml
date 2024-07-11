@@ -8,15 +8,15 @@ authors = [
 ]
 
 [dependencies]
-arboard = {version = "3.3.2", features = ["wl-clipboard-rs", "wayland-data-control"]}
+arboard = {version = "3.4", features = ["wl-clipboard-rs", "wayland-data-control"]}
 env_logger = "0.11"
 ksni = {git="https://github.com/iovxw/ksni", branch="zbus" }
 log = "0.4"
-notify-rust = {version = "4.10", default_features = false, features = ["d"]}
-open = "5.1.2"
-resvg = "0.40.0"
+notify-rust = {version = "4.11", default_features = false, features = ["d"]}
+open = "5.3"
+resvg = "0.41.0"
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 which = "6.0"
 whoami = "1.5.1"
-wl-clipboard-rs = "0.8"
+wl-clipboard-rs = "0.9"
