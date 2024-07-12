@@ -32,7 +32,7 @@ pub fn copy_peer_ip(
     Notification::new()
         .summary(&summary)
         .body(&notif_body)
-        .icon("info")
+        .icon("tailscale")
         .show()?;
 
     Ok(())
