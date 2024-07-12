@@ -129,23 +129,26 @@ impl Tray for SysTray {
     fn menu(&self) -> Vec<MenuItem<Self>> {
         let my_ip = self.ctx.ip.clone();
 
+        let message = format!(
+            "This device: {} ({})",
+            self.ctx.status.this_machine.display_name, self.ctx.ip
+        );
+
         let mut my_sub = Vec::new();
         let mut serv_sub = Vec::new();
         for (_, peer) in self.ctx.status.peers.iter() {
             let ip = peer.ips[0].clone();
             let name = &peer.display_name;
-            let title = name.to_string();
             let sub = match name {
                 PeerKind::DNSName(_) => &mut serv_sub,
                 PeerKind::HostName(_) => &mut my_sub,
             };
 
-            let peer_ip = ip.to_owned();
-            let peer_title = title.to_owned();
+            let peer_title = format!("{} ({})", name, ip);
             let menu = MenuItem::Standard(StandardItem {
-                label: format!("{}\t({})", title, ip),
+                label: format!("{}\t({})", name, ip),
                 activate: Box::new(move |_: &mut Self| {
-                    if let Err(e) = copy_peer_ip(&peer_ip, &peer_title) {
+                    if let Err(e) = copy_peer_ip(&ip, &peer_title, false) {
                         eprintln!("failed to copy peer ip: {}", e);
                     }
                 }),
@@ -187,7 +190,7 @@ impl Tray for SysTray {
                     self.ctx.status.this_machine.display_name, self.ctx.ip
                 ),
                 activate: Box::new(move |_| {
-                    if let Err(e) = copy_peer_ip(&my_ip, "Peer IP copied to clipboard!") {
+                    if let Err(e) = copy_peer_ip(&my_ip, message.as_str(), true) {
                         eprintln!("failed to copy ip for this device: {}", e);
                     }
                 }),

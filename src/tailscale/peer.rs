@@ -10,7 +10,11 @@ pub fn check_peer_ip(peer_ip: &str) {
     }
 }
 
-pub fn copy_peer_ip(peer_ip: &str, notif_title: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn copy_peer_ip(
+    peer_ip: &str,
+    notif_body: &str,
+    host: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     check_peer_ip(peer_ip);
 
     copy_to_clipboard(peer_ip)?;
@@ -18,14 +22,16 @@ pub fn copy_peer_ip(peer_ip: &str, notif_title: &str) -> Result<(), Box<dyn std:
     // Get IP from clipboard to verify
     let clip_ip = get_from_clipboard()?;
 
+    // Create summary for host/peer
+    let summary = format!("Copied {} IP address", if host { "host" } else { "peer" });
+
     // log success
-    info!("Copied IP address {} to the clipboard", clip_ip);
+    info!("{} {} to the clipboard", summary, clip_ip);
 
     // send a notification through dbus
-    let body = format!("Copied IP address {} to the clipboard", clip_ip);
     Notification::new()
-        .summary(notif_title)
-        .body(&body)
+        .summary(&summary)
+        .body(&notif_body)
         .icon("info")
         .show()?;
 
