@@ -129,23 +129,26 @@ impl Tray for SysTray {
     fn menu(&self) -> Vec<MenuItem<Self>> {
         let my_ip = self.ctx.ip.clone();
 
+        let message = format!(
+            "This device: {} ({})",
+            self.ctx.status.this_machine.display_name, self.ctx.ip
+        );
+
         let mut my_sub = Vec::new();
         let mut serv_sub = Vec::new();
         for (_, peer) in self.ctx.status.peers.iter() {
             let ip = peer.ips[0].clone();
             let name = &peer.display_name;
-            let title = name.to_string();
             let sub = match name {
                 PeerKind::DNSName(_) => &mut serv_sub,
                 PeerKind::HostName(_) => &mut my_sub,
             };
 
-            let peer_ip = ip.to_owned();
-            let peer_title = title.to_owned();
+            let peer_title = format!("{} ({})", name, ip);
             let menu = MenuItem::Standard(StandardItem {
-                label: format!("{}\t({})", title, ip),
+                label: format!("{}\t({})", name, ip),
                 activate: Box::new(move |_: &mut Self| {
-                    if let Err(e) = copy_peer_ip(&peer_ip, &peer_title) {
+                    if let Err(e) = copy_peer_ip(&ip, &peer_title, false) {
                         eprintln!("failed to copy peer ip: {}", e);
                     }
                 }),
@@ -156,7 +159,7 @@ impl Tray for SysTray {
         vec![
             StandardItem {
                 label: "Connect".into(),
-                icon_name: "network-transmit-receive".into(),
+                icon_name: "network-transmit-receive-symbolic".into(),
                 enabled: !self.enabled(),
                 visible: true,
                 activate: Box::new(|this: &mut Self| {
@@ -169,7 +172,7 @@ impl Tray for SysTray {
             .into(),
             StandardItem {
                 label: "Disconnect".into(),
-                icon_name: "network-offline".into(),
+                icon_name: "network-offline-symbolic".into(),
                 enabled: self.enabled(),
                 visible: true,
                 activate: Box::new(|this: &mut Self| {
@@ -186,8 +189,9 @@ impl Tray for SysTray {
                     "This device: {} ({})",
                     self.ctx.status.this_machine.display_name, self.ctx.ip
                 ),
+                icon_name: "computer-symbolic".into(),
                 activate: Box::new(move |_| {
-                    if let Err(e) = copy_peer_ip(&my_ip, "Peer IP copied to clipboard!") {
+                    if let Err(e) = copy_peer_ip(&my_ip, message.as_str(), true) {
                         eprintln!("failed to copy ip for this device: {}", e);
                     }
                 }),
@@ -196,6 +200,7 @@ impl Tray for SysTray {
             .into(),
             SubMenu {
                 label: "Network Devices".into(),
+                icon_name: "network-wired-symbolic".into(),
                 submenu: vec![
                     SubMenu {
                         label: "My Devices".into(),
@@ -214,7 +219,8 @@ impl Tray for SysTray {
             }
             .into(),
             StandardItem {
-                label: "Admin Console…".into(),
+                label: "Admin Console".into(),
+                icon_name: "applications-system-symbolic".into(),
                 activate: Box::new(|_| {
                     let admin_url = std::env::var("TAILRAY_ADMIN_URL").unwrap_or_else(|_| {
                         "https://login.tailscale.com/admin/machines".to_string()
