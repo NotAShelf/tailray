@@ -1,7 +1,11 @@
 {
   inputs.nixpkgs.url = "github:NixOS/nixpkgs";
 
-  outputs = {nixpkgs, ...}: let
+  outputs = {
+    self,
+    nixpkgs,
+    ...
+  }: let
     systems = ["x86_64-linux" "aarch64-linux"];
     forEachSystem = nixpkgs.lib.genAttrs systems;
 
@@ -14,5 +18,9 @@
     packages = forEachSystem (system: {
       default = pkgsForEach.${system}.callPackage ./nix/package.nix {};
     });
+
+    homeManagerModules = {
+      default = import ./nix/hm-module.nix self;
+    };
   };
 }
