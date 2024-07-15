@@ -1,7 +1,7 @@
-use crate::pkexec::{get_pkexec_path, should_elevate_perms};
-use crate::svg::renderer::ResvgRenderer;
+use crate::pkexec::{get_path, should_elevate_perms};
+use crate::svg::renderer::Resvg;
 use crate::tailscale::peer::copy_peer_ip;
-use crate::tailscale::status::{get_current_status, Status};
+use crate::tailscale::status::{get_current, Status};
 use crate::tailscale::utils::PeerKind;
 
 use ksni::{
@@ -10,7 +10,6 @@ use ksni::{
     Icon, MenuItem, ToolTip, Tray,
 };
 
-use log::info;
 use notify_rust::Notification;
 use std::{
     error::Error,
@@ -31,20 +30,20 @@ pub struct SysTray {
 }
 
 impl SysTray {
-    fn enabled(&self) -> bool {
+    const fn enabled(&self) -> bool {
         self.ctx.status.tailscale_up
     }
 
     fn update_status(&mut self) -> Result<(), Box<dyn Error>> {
-        self.ctx = get_current_status()?;
+        self.ctx = get_current()?;
         Ok(())
     }
 
     fn do_service_link(&mut self, verb: &str) -> Result<(), Box<dyn Error>> {
-        let pkexec_path = get_pkexec_path();
+        let pkexec_path = get_path();
         let elevate = should_elevate_perms();
         let command = if elevate {
-            info!("Elevating permissions for pkexec.");
+            log::info!("Elevating permissions for pkexec.");
             Command::new(pkexec_path)
                 .arg("tailscale")
                 .arg(verb)
@@ -64,7 +63,7 @@ impl SysTray {
 
         let output = command.wait_with_output()?;
 
-        info!(
+        log::info!(
             "Link {}: [{}]{}",
             &verb,
             output.status,
@@ -75,7 +74,7 @@ impl SysTray {
             let verb_result = if verb.eq("up") { "online" } else { "offline" };
 
             Notification::new()
-                .summary(format!("Connection {}", verb).as_str())
+                .summary(format!("Connection {verb}").as_str())
                 .body(format!("Tailscale service {verb_result}").as_str())
                 .icon("info")
                 .show()?;
@@ -97,7 +96,7 @@ impl Tray for SysTray {
     }
 
     fn icon_pixmap(&self) -> Vec<Icon> {
-        ResvgRenderer::load_icon(self.enabled())
+        Resvg::load_icon(self.enabled())
     }
 
     fn id(&self) -> String {
@@ -119,10 +118,10 @@ impl Tray for SysTray {
         // ags returns:
         // "Error: can't assign "tailscale-online" as icon, it is not a file nor a named icon"
         ToolTip {
-            title: format!("Tailscale: {}", state),
-            description: Default::default(),
-            icon_name: Default::default(),
-            icon_pixmap: Default::default(),
+            title: format!("Tailscale: {state}"),
+            description: String::default(),
+            icon_name: String::default(),
+            icon_pixmap: Vec::default(),
         }
     }
 
@@ -136,7 +135,7 @@ impl Tray for SysTray {
 
         let mut my_sub = Vec::new();
         let mut serv_sub = Vec::new();
-        for (_, peer) in self.ctx.status.peers.iter() {
+        for peer in self.ctx.status.peers.values() {
             let ip = peer.ips[0].clone();
             let name = &peer.display_name;
             let sub = match name {
@@ -144,12 +143,12 @@ impl Tray for SysTray {
                 PeerKind::HostName(_) => &mut my_sub,
             };
 
-            let peer_title = format!("{} ({})", name, ip);
+            let peer_title = format!("{name} ({ip})");
             let menu = MenuItem::Standard(StandardItem {
-                label: format!("{}\t({})", name, ip),
+                label: format!("{name}\t({ip})"),
                 activate: Box::new(move |_: &mut Self| {
                     if let Err(e) = copy_peer_ip(&ip, &peer_title, false) {
-                        eprintln!("failed to copy peer ip: {}", e);
+                        eprintln!("failed to copy peer ip: {e}");
                     }
                 }),
                 ..Default::default()
@@ -164,7 +163,7 @@ impl Tray for SysTray {
                 visible: true,
                 activate: Box::new(|this: &mut Self| {
                     if let Err(e) = this.do_service_link("up") {
-                        eprintln!("failed to connect: {}", e);
+                        eprintln!("failed to connect: {e}");
                     }
                 }),
                 ..Default::default()
@@ -177,7 +176,7 @@ impl Tray for SysTray {
                 visible: true,
                 activate: Box::new(|this: &mut Self| {
                     if let Err(e) = this.do_service_link("down") {
-                        eprintln!("failed to disconnect: {}", e);
+                        eprintln!("failed to disconnect: {e}");
                     }
                 }),
                 ..Default::default()
@@ -192,7 +191,7 @@ impl Tray for SysTray {
                 icon_name: "computer-symbolic".into(),
                 activate: Box::new(move |_| {
                     if let Err(e) = copy_peer_ip(&my_ip, message.as_str(), true) {
-                        eprintln!("failed to copy ip for this device: {}", e);
+                        eprintln!("failed to copy ip for this device: {e}");
                     }
                 }),
                 ..Default::default()
@@ -226,7 +225,7 @@ impl Tray for SysTray {
                         "https://login.tailscale.com/admin/machines".to_string()
                     });
                     if let Err(e) = open::that(admin_url.as_str()) {
-                        eprintln!("failed to open admin console: {}", e);
+                        eprintln!("failed to open admin console: {e}");
                     }
                 }),
                 ..Default::default()
@@ -244,11 +243,11 @@ impl Tray for SysTray {
     }
 
     fn watcher_online(&self) {
-        info!("watcher online.");
+        log::info!("watcher online.");
     }
 
     fn watcher_offline(&self) -> bool {
-        info!("watcher offline, shutting down the system tray.");
+        log::info!("watcher offline, shutting down the system tray.");
         false
     }
 }

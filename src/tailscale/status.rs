@@ -1,4 +1,4 @@
-use crate::tailscale::dns;
+use crate::tailscale::utils;
 use crate::tailscale::utils::{Machine, User};
 use crate::tray::menu::Context;
 use serde::{Deserialize, Serialize};
@@ -22,23 +22,23 @@ pub struct Status {
     user: HashMap<String, User>,
 }
 
-pub fn get_status() -> Result<Status, Box<dyn std::error::Error>> {
-    let status_json = get_status_json()?;
+pub fn get() -> Result<Status, Box<dyn std::error::Error>> {
+    let status_json = get_json()?;
     let mut status: Status = serde_json::from_str(&status_json)?;
-    let dnssuffix = status.magic_dnssuffix.to_owned();
+    let dnssuffix = &status.magic_dnssuffix;
     status.tailscale_up = matches!(status.backend_state.as_str(), "Running");
 
-    dns::dns_or_quote_hostname(&mut status.this_machine, &dnssuffix);
+    utils::set_display_name(&mut status.this_machine, dnssuffix);
     status
         .peers
         .values_mut()
-        .for_each(|m| dns::dns_or_quote_hostname(m, &dnssuffix));
+        .for_each(|m| utils::set_display_name(m, dnssuffix));
 
     Ok(status)
 }
 
-pub fn get_current_status() -> Result<Context, Box<dyn std::error::Error>> {
-    let status = get_status()?;
+pub fn get_current() -> Result<Context, Box<dyn std::error::Error>> {
+    let status = get()?;
     let pkexec = which("pkexec")?;
 
     Ok(Context {
@@ -48,7 +48,7 @@ pub fn get_current_status() -> Result<Context, Box<dyn std::error::Error>> {
     })
 }
 
-pub fn get_status_json() -> Result<String, Box<dyn std::error::Error>> {
+pub fn get_json() -> Result<String, Box<dyn std::error::Error>> {
     let output = Command::new("tailscale")
         .arg("status")
         .arg("--json")

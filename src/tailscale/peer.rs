@@ -1,12 +1,11 @@
-use crate::clipboard::{copy_to_clipboard, get_from_clipboard};
-use log::{error, info};
+use crate::clipboard::{copy, get};
 use notify_rust::Notification;
 
 pub fn check_peer_ip(peer_ip: &str) {
     if peer_ip.is_empty() {
-        error!("No peer IP.")
+        log::error!("No peer IP.");
     } else {
-        info!("Peer IP: {}", peer_ip);
+        log::info!("Peer IP: {peer_ip}");
     }
 }
 
@@ -17,21 +16,21 @@ pub fn copy_peer_ip(
 ) -> Result<(), Box<dyn std::error::Error>> {
     check_peer_ip(peer_ip);
 
-    copy_to_clipboard(peer_ip)?;
+    copy(peer_ip)?;
 
     // Get IP from clipboard to verify
-    let clip_ip = get_from_clipboard()?;
+    let clip_ip = get()?;
 
     // Create summary for host/peer
     let summary = format!("Copied {} IP address", if host { "host" } else { "peer" });
 
     // log success
-    info!("{} {} to the clipboard", summary, clip_ip);
+    log::info!("{summary} {clip_ip} to the clipboard");
 
     // send a notification through dbus
     Notification::new()
         .summary(&summary)
-        .body(&notif_body)
+        .body(notif_body)
         .icon("tailscale")
         .show()?;
 

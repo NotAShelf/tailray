@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::HashSet,
     fmt::{Display, Formatter},
 };
 
@@ -12,15 +12,15 @@ pub enum PeerKind {
 
 impl Default for PeerKind {
     fn default() -> Self {
-        PeerKind::HostName("default".to_owned())
+        Self::HostName("default".to_owned())
     }
 }
 
 impl Display for PeerKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match &self {
-            PeerKind::DNSName(d) => write!(f, "{d}"),
-            PeerKind::HostName(h) => write!(f, "{h}"),
+            Self::DNSName(d) => write!(f, "{d}"),
+            Self::HostName(h) => write!(f, "{h}"),
         }
     }
 }
@@ -62,50 +62,55 @@ pub fn has_suffix(name: &str, suffix: &str) -> bool {
 pub fn trim_suffix(name: &str, suffix: &str) -> String {
     let mut new_name = name;
     if has_suffix(name, suffix) {
-        new_name = new_name.trim_end_matches('.');
         let suffix = suffix.trim_start_matches('.').trim_end_matches('.');
+        new_name = new_name.trim_end_matches('.');
         new_name = new_name.trim_end_matches(suffix);
     }
     new_name.trim_end_matches('.').to_string()
 }
 
 pub fn sanitize_hostname(hostname: &str) -> String {
-    const MAX_LABEL_LEN: usize = 63;
-    let mut sb = "".to_string();
+    const MAX_LABEL_LENGTH: usize = 63;
+
+    // Trim suffixes
     let hostname = hostname
         .trim_end_matches(".local")
         .trim_end_matches(".localdomain")
         .trim_end_matches(".lan");
-    let mut start = 0;
-    let mut end = hostname.len();
-    if end > MAX_LABEL_LEN {
-        end = MAX_LABEL_LEN;
-    }
-    let mut chars = hostname.chars();
-    while start < end {
-        if chars.nth(start).unwrap().is_alphanumeric() {
-            break;
-        }
-        start += 1;
-    }
-    while start < end {
-        if chars.nth(end - 1).unwrap().is_alphanumeric() {
-            break;
-        }
-        end -= 1;
-    }
-    let seperators: HashMap<char, bool> =
-        HashMap::from([(' ', true), ('.', true), ('@', true), ('_', true)]);
 
-    let mut chars = hostname.chars();
-    for i in start..end - 1 {
-        let boundary = (i == start) || (i == end - 1);
-        let chari = chars.nth(i).unwrap();
-        if !boundary && seperators[&chari] {
-            sb.push('-');
-        } else if chari.is_alphanumeric() || chari == '-' {
-            sb.push(chari.to_ascii_lowercase())
-        }
+    // Find the first/last alphanumeric characters
+    let start = hostname.find(|c: char| c.is_alphanumeric()).unwrap_or(0);
+    let end = hostname
+        .rfind(|c: char| c.is_alphanumeric())
+        .map_or(0, |e| e + 1);
+
+    let separators: HashSet<char> = [' ', '.', '@', '_'].into();
+
+    let mut sanitized: String = hostname[start..end]
+        .chars()
+        .enumerate()
+        .map(|(index, char)| {
+            let boundary = (index == 0) || (index == end - start - 1);
+            if !boundary && separators.contains(&char) {
+                '-'
+            } else if char.is_alphanumeric() || char == '-' {
+                char.to_ascii_lowercase()
+            } else {
+                char
+            }
+        })
+        .collect();
+
+    sanitized.truncate(MAX_LABEL_LENGTH);
+    sanitized
+}
+
+pub fn set_display_name(m: &mut Machine, dns_suffix: &str) {
+    let dns_name = trim_suffix(&m.dns_name, dns_suffix);
+
+    if dns_name.is_empty() {
+        m.display_name = PeerKind::DNSName(sanitize_hostname(&m.hostname));
+    } else {
+        m.display_name = PeerKind::HostName(dns_name);
     }
-    sb
 }
