@@ -13,8 +13,8 @@ fn main() {
 
     // start tray service
     match start_tray_service() {
-        Ok(_) => println!("Tray service started successfully."),
-        Err(e) => eprintln!("Failed to start the tray service: {}", e),
+        Ok(()) => println!("Tray service started successfully."),
+        Err(e) => eprintln!("Failed to start the tray service: {e}"),
     }
 
     // keep the main thread alive
