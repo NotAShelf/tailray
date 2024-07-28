@@ -114,9 +114,6 @@ impl Tray for SysTray {
             "Disconnected"
         };
 
-        // FIXME: the icon is still not showing up
-        // ags returns:
-        // "Error: can't assign "tailscale-online" as icon, it is not a file nor a named icon"
         ToolTip {
             title: format!("Tailscale: {state}"),
             description: String::default(),
