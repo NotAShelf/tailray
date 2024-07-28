@@ -17,7 +17,7 @@ in {
     package =
       mkPackageOption pkgs "tailray" {}
       // {
-        default = self.packages.${pkgs.system}.default;
+        default = self.packages.${pkgs.system}.tailray;
       };
   };
 

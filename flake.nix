@@ -16,7 +16,8 @@
     });
 
     packages = forEachSystem (system: {
-      default = pkgsForEach.${system}.callPackage ./nix/package.nix {};
+      tailray = pkgsForEach.${system}.callPackage ./nix/package.nix {};
+      default = self.packages.${system}.tailray;
     });
 
     homeManagerModules = {
