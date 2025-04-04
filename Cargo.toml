@@ -1,24 +1,23 @@
 [package]
 edition = "2021"
 name = "tailray"
-version = "0.3.0"
-authors = [
-    "d1t2 <dieterplex@gmail.com>",
-    "NotAShelf <raf@notashelf.dev>"
-]
+version = "0.3.1"
+authors = ["NotAShelf <raf@notashelf.dev>"]
+license = "MIT"
 
 [dependencies]
 arboard = {version = "3.4", features = ["wl-clipboard-rs", "wayland-data-control"]}
-ctrlc = "3.4.6"
+ctrlc = "3.4"
 env_logger = "0.11"
 ksni = {version = "0.3", features = ["blocking"]}
 log = "0.4"
 notify-rust = {version = "4.11", default_features = false, features = ["d"]}
 open = "5.3"
-resvg = "0.45.0"
+resvg = "0.45"
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
-thiserror = "2.0.12"
+signal-hook = "0.3"
+thiserror = "2.0"
 which = "7.0"
-whoami = "1.5.1"
+whoami = "1.6"
 wl-clipboard-rs = "0.9"
