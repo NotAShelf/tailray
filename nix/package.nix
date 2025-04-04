@@ -13,21 +13,35 @@
   rev ? "dirty",
 }: let
   cargoToml = builtins.fromTOML (builtins.readFile ../Cargo.toml);
+
+  junkfiles = [
+    "flake.nix"
+    "flake.lock"
+    "LICENSE"
+    ".gitignore"
+    ".envrc"
+    "README.md"
+  ];
+
+  repoDirFilter = name: type:
+    !((type == "directory") && ((baseNameOf name) == "nix"))
+    && !((type == "directory") && ((baseNameOf (dirOf name)) == ".github"))
+    && !(builtins.any (r: (builtins.match r (baseNameOf name)) != null) junkfiles);
+
+  cleanSource = src:
+    lib.cleanSourceWith {
+      filter = repoDirFilter;
+      src = lib.cleanSource src;
+    };
 in
-  stdenv.mkDerivation {
+  stdenv.mkDerivation (finalAttrs: {
     pname = "tailray";
     version = "${cargoToml.package.version}-${rev}";
 
-    src = builtins.path {
-      name = "tailray";
-      path = ../.;
-    };
+    src = cleanSource ../.;
 
     cargoDeps = rustPlatform.importCargoLock {
-      lockFile = ../Cargo.lock;
-      outputHashes = {
-        "ksni-0.2.1" = "sha256-CKjOUGsqlMdgnNY6j29pP6S8wdZ73/v1dMyiIurlltI=";
-      };
+      lockFile = "${finalAttrs.src}/Cargo.lock";
     };
 
     strictDeps = true;
@@ -54,4 +68,4 @@ in
       mainProgram = "tailray";
       maintainers = with lib.maintainers; [NotAShelf];
     };
-  }
+  })
