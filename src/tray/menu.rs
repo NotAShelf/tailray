@@ -305,10 +305,13 @@ impl Tray for SysTray {
     }
 
     fn watcher_offline(&self, reason: OfflineReason) -> bool {
-        error!(
-            "Watcher offline, shutting down the system tray: {:?}",
-            reason
-        );
+        info!("Watcher offline, signaling for reconnection: {:?}", reason);
+
+        // Signal the watchdog to respawn the tray
+        crate::tray::utils::signal_respawn_needed();
+
+        // Return false to allow the current instance to be cleaned up
+        // The watchdog will spawn a new one
         false
     }
 }
