@@ -19,6 +19,8 @@ ground up for a more maintainable codebase.
 - IP management: Easy access to copy your IP or peer IPs to clipboard
 - Privilege handling: Automatically elevates privileges when needed
 - Desktop notifications: Receive notifications about connection status
+- Watchdog handler: Automatically restart the tray handler when your statusbar
+  restarts
 
 ## Usage
 
