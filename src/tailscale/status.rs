@@ -57,31 +57,20 @@ pub struct Status {
 
 /// Gets the current Tailscale status
 pub fn get() -> Result<Status, Box<dyn Error>> {
-    // Get and parse the JSON status
     let status_json = get_json()?;
+    let mut status: Status = serde_json::from_str(&status_json).map_err(|e| {
+        error!("Failed to parse Tailscale status: {}", e);
+        StatusError::ParseFailed(format!("{e}: {status_json}"))
+    })?;
 
-    let mut status: Status = match serde_json::from_str(&status_json) {
-        Ok(status) => status,
-        Err(e) => {
-            error!("Failed to parse Tailscale status: {}", e);
-            return Err(Box::new(StatusError::ParseFailed(format!(
-                "{e}: {status_json}"
-            ))));
-        }
-    };
-
-    // Set tailscale_up based on backend state
     status.tailscale_up = matches!(status.backend_state.as_str(), "Running");
     debug!("Tailscale status: up={}", status.tailscale_up);
 
-    // Set display names for all machines
     let dnssuffix = &status.magic_dnssuffix;
     utils::set_display_name(&mut status.this_machine, dnssuffix);
-
     for machine in status.peers.values_mut() {
         utils::set_display_name(machine, dnssuffix);
     }
-
     Ok(status)
 }
 
@@ -106,43 +95,35 @@ pub fn get_current() -> Result<Context, Box<dyn Error>> {
 
 /// Gets the raw JSON status from the tailscale command
 pub fn get_json() -> Result<String, Box<dyn Error>> {
-    let output = match Command::new("tailscale")
+    let output = Command::new("tailscale")
         .arg("status")
         .arg("--json")
         .output()
-    {
-        Ok(output) => output,
-        Err(e) => {
+        .map_err(|e| {
             error!("Failed to execute tailscale command: {}", e);
-            return Err(Box::new(StatusError::CommandFailed(e.to_string())));
-        }
-    };
+            StatusError::CommandFailed(e.to_string())
+        })?;
 
-    if output.status.success() {
-        let stdout = match String::from_utf8(output.stdout) {
-            Ok(stdout) => stdout,
-            Err(e) => {
-                error!("Invalid UTF-8 in output: {}", e);
-                return Err(Box::new(StatusError::ParseFailed(format!(
-                    "Invalid UTF-8 in output: {e}"
-                ))));
-            }
-        };
-
-        if stdout.trim().is_empty() {
-            warn!("Tailscale returned empty status");
-            return Err(Box::new(StatusError::MissingData(
-                "Tailscale returned empty status".into(),
-            )));
-        }
-
-        Ok(stdout)
-    } else {
+    if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         error!("Tailscale status command failed: {}", stderr.trim());
-        Err(Box::new(StatusError::CommandFailed(format!(
+        return Err(Box::new(StatusError::CommandFailed(format!(
             "Tailscale status command failed: {}",
             stderr.trim()
-        ))))
+        ))));
     }
+
+    let stdout = String::from_utf8(output.stdout).map_err(|e| {
+        error!("Invalid UTF-8 in output: {}", e);
+        StatusError::ParseFailed(format!("Invalid UTF-8 in output: {e}"))
+    })?;
+
+    if stdout.trim().is_empty() {
+        warn!("Tailscale returned empty status");
+        return Err(Box::new(StatusError::MissingData(
+            "Tailscale returned empty status".into(),
+        )));
+    }
+
+    Ok(stdout)
 }
