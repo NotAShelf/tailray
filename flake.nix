@@ -1,4 +1,5 @@
 {
+  description = "Small Tailscale Tray Manager";
   inputs.nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
 
   outputs = {
@@ -20,7 +21,13 @@
     });
 
     homeManagerModules = {
-      default = import ./nix/hm-module.nix self;
+      tailray = import ./nix/modules/home-manager.nix self;
+      default = self.homeManagerModules.tailray;
+    };
+
+    nixosModules = {
+      tailray = import ./nix/modules/nixos.nix self;
+      default = self.nixosModules.tailray;
     };
   };
 }
