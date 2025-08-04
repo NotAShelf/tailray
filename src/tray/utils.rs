@@ -6,8 +6,8 @@ use log::{error, info};
 use std::{
     error::Error,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
     thread,
     time::Duration,

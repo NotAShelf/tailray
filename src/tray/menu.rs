@@ -1,13 +1,12 @@
 use crate::pkexec::{get_path_or_default, should_elevate_perms};
 use crate::svg::renderer::Resvg;
 use crate::tailscale::peer::copy_peer_ip;
-use crate::tailscale::status::{get_current, Status};
+use crate::tailscale::status::{Status, get_current};
 use crate::tailscale::utils::PeerKind;
 
 use ksni::{
-    self,
+    self, Icon, MenuItem, OfflineReason, ToolTip, Tray,
     menu::{StandardItem, SubMenu},
-    Icon, MenuItem, OfflineReason, ToolTip, Tray,
 };
 
 use log::{debug, error, info};
@@ -73,65 +72,61 @@ impl SysTray {
 
     /// Executes a Tailscale service command (up/down)
     pub fn do_service_link(&mut self, verb: &str) -> Result<(), Box<dyn Error>> {
-        // Use the non-panicking version of get_path
-        let pkexec_path = get_path_or_default();
         let elevate = should_elevate_perms();
-
-        // Execute the appropriate command based on whether we need to elevate privileges
-        let command_result = if elevate {
-            info!("Elevating permissions for pkexec at: {:?}", pkexec_path);
-            Command::new(pkexec_path)
-                .arg("tailscale")
-                .arg(verb)
-                .stdout(Stdio::piped())
-                .spawn()
+        let (cmd, args) = if elevate {
+            (get_path_or_default(), vec!["tailscale", verb])
         } else {
-            info!("Running tailscale command without elevation");
-            Command::new("tailscale")
-                .arg(verb)
-                .stdout(Stdio::piped())
-                .spawn()
+            ("tailscale".into(), vec![verb])
         };
 
-        let command = command_result.map_err(|e| {
-            error!("Failed to execute command: {}", e);
-            TrayError::Command(e.to_string())
-        })?;
+        info!(
+            "{} permissions for {}",
+            if elevate {
+                "Elevating"
+            } else {
+                "Running without elevation"
+            },
+            cmd.display()
+        );
 
-        let output = command.wait_with_output().map_err(|e| {
-            error!("Command failed while waiting: {}", e);
-            TrayError::Command(e.to_string())
-        })?;
+        let output = Command::new(cmd)
+            .args(&args)
+            .stdout(Stdio::piped())
+            .spawn()
+            .and_then(|c| c.wait_with_output())
+            .map_err(|e| {
+                error!("Failed to execute command: {}", e);
+                TrayError::Command(e.to_string())
+            })?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         info!("Link {}: [{}]{}", verb, output.status, stdout);
 
-        if output.status.success() {
-            let verb_result = if verb.eq("up") { "online" } else { "offline" };
-
+        let notify = |summary: &str, body: &str, icon: &str| {
             Notification::new()
-                .summary(&format!("Connection {verb}"))
-                .body(&format!("Tailscale service {verb_result}"))
-                .icon("info")
+                .summary(summary)
+                .body(body)
+                .icon(icon)
                 .show()
                 .map_err(|e| {
                     error!("Failed to show notification: {}", e);
                     TrayError::Notification(e.to_string())
-                })?;
+                })
+        };
 
+        if output.status.success() {
+            notify(
+                &format!("Connection {verb}"),
+                &format!(
+                    "Tailscale service {}",
+                    if verb == "up" { "online" } else { "offline" }
+                ),
+                "info",
+            )?;
             self.update_status()?;
         } else {
-            // Log failure and potentially notify user
             error!("Failed to {} Tailscale: {}", verb, stdout);
-            Notification::new()
-                .summary(&format!("Connection {verb} failed"))
-                .body(&stdout)
-                .icon("error")
-                .show()
-                .map_err(|e| {
-                    error!("Failed to show error notification: {}", e);
-                    TrayError::Notification(e.to_string())
-                })?;
+            notify(&format!("Connection {verb} failed"), &stdout, "error")?;
         }
 
         Ok(())
