@@ -56,22 +56,18 @@ pub fn validate_peer_ip(peer_ip: &str) -> Result<(), PeerError> {
 /// # Returns
 /// * `Result<(), Box<dyn Error>>` - Success or error
 pub fn copy_peer_ip(peer_ip: &str, notif_body: &str, host: bool) -> Result<(), Box<dyn Error>> {
-    // Validate IP first
     validate_peer_ip(peer_ip)?;
 
-    // Copy to clipboard
     copy(peer_ip).map_err(|e| {
         error!("Failed to copy IP to clipboard: {}", e);
         PeerError::ClipboardError(e.to_string())
     })?;
 
-    // Get IP from clipboard to verify
     let clip_ip = get().map_err(|e| {
         error!("Failed to verify clipboard contents: {}", e);
         PeerError::ClipboardError(e.to_string())
     })?;
 
-    // Verify the clipboard contents match what we tried to copy
     if clip_ip != peer_ip {
         error!(
             "Clipboard verification failed: expected '{}', got '{}'",
@@ -82,19 +78,14 @@ pub fn copy_peer_ip(peer_ip: &str, notif_body: &str, host: bool) -> Result<(), B
         )));
     }
 
-    // Create summary for host/peer
-    let device_type = if host { "host" } else { "peer" };
-    let summary = format!("Copied {device_type} IP address");
-
-    // Log success
+    let summary = format!("Copied {} IP address", if host { "host" } else { "peer" });
     info!("{} {} to clipboard", summary, clip_ip);
 
-    // Send notification
     Notification::new()
         .summary(&summary)
         .body(notif_body)
         .icon("tailscale")
-        .timeout(3000) // 3 seconds timeout
+        .timeout(3000)
         .show()
         .map_err(|e| {
             error!("Failed to show notification: {}", e);
