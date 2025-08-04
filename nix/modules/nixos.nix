@@ -9,7 +9,7 @@ self: {
 
   cfg = config.services.tailray;
 in {
-  meta.maintainers = with lib.maintainers; [fufexan];
+  meta.maintainers = with lib.maintainers; [NotAShelf];
 
   options.services.tailray = {
     enable = mkEnableOption "Tailray, a Tailscale tray";

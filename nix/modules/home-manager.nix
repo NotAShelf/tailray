@@ -4,10 +4,10 @@ self: {
   lib,
   ...
 }: let
-  cfg = config.services.tailray;
-
-  inherit (lib.meta) getExe;
   inherit (lib.options) mkEnableOption mkPackageOption;
+  inherit (lib.meta) getExe;
+
+  cfg = config.services.tailray;
 in {
   meta.maintainers = with lib.maintainers; [fufexan];
 
