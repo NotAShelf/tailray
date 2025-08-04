@@ -177,38 +177,43 @@ impl Tray for SysTray {
         debug!("Creating menu with device {}", message);
 
         // Prepare device submenus
-        let mut my_sub = Vec::new();
-        let mut serv_sub = Vec::new();
-
-        for peer in &self.ctx.status.peers {
-            // Skip peers with no IPs
-            if peer.1.ips.is_empty() {
-                debug!("Skipping peer with no IPs: {:?}", peer.1.display_name);
-                continue;
-            }
-
-            let ip = peer.1.ips[0].clone();
-            let name = &peer.1.display_name;
-
-            // Choose which submenu based on peer type
-            let sub = match name {
-                PeerKind::DNSName(_) => &mut serv_sub,
-                PeerKind::HostName(_) => &mut my_sub,
-            };
-
-            let peer_title = format!("{name} ({ip})");
-            let display_name = name.to_string();
-            let menu = MenuItem::Standard(StandardItem {
-                label: format!("{display_name}\t({ip})"),
-                activate: Box::new(move |_: &mut Self| {
-                    if let Err(e) = copy_peer_ip(&ip, &peer_title, false) {
-                        error!("Failed to copy peer IP: {e}");
+        let (my_sub, serv_sub): (Vec<_>, Vec<_>) = self
+            .ctx
+            .status
+            .peers
+            .iter()
+            .filter(|(_, peer)| !peer.ips.is_empty())
+            .map(|(_, peer)| {
+                let ip = peer.ips[0].clone();
+                let name = &peer.display_name;
+                let peer_title = format!("{name} ({ip})");
+                let display_name = name.to_string();
+                let menu = MenuItem::Standard(StandardItem {
+                    label: format!("{display_name}\t({ip})"),
+                    activate: Box::new(move |_: &mut Self| {
+                        if let Err(e) = copy_peer_ip(&ip, &peer_title, false) {
+                            error!("Failed to copy peer IP: {e}");
+                        }
+                    }),
+                    ..Default::default()
+                });
+                match name {
+                    PeerKind::DNSName(_) => (None, Some(menu)),
+                    PeerKind::HostName(_) => (Some(menu), None),
+                }
+            })
+            .fold(
+                (Vec::new(), Vec::new()),
+                |(mut my, mut serv), (my_item, serv_item)| {
+                    if let Some(item) = my_item {
+                        my.push(item);
                     }
-                }),
-                ..Default::default()
-            });
-            sub.push(menu);
-        }
+                    if let Some(item) = serv_item {
+                        serv.push(item);
+                    }
+                    (my, serv)
+                },
+            );
 
         vec![
             StandardItem {
