@@ -13,32 +13,22 @@
   rev ? "dirty",
 }: let
   cargoToml = builtins.fromTOML (builtins.readFile ../Cargo.toml);
-
-  junkfiles = [
-    "flake.nix"
-    "flake.lock"
-    "LICENSE"
-    ".gitignore"
-    ".envrc"
-    "README.md"
-  ];
-
-  repoDirFilter = name: type:
-    !((type == "directory") && ((baseNameOf name) == "nix"))
-    && !((type == "directory") && ((baseNameOf (dirOf name)) == ".github"))
-    && !(builtins.any (r: (builtins.match r (baseNameOf name)) != null) junkfiles);
-
-  cleanSource = src:
-    lib.cleanSourceWith {
-      filter = repoDirFilter;
-      src = lib.cleanSource src;
-    };
 in
   stdenv.mkDerivation (finalAttrs: {
     pname = "tailray";
     version = "${cargoToml.package.version}-${rev}";
 
-    src = cleanSource ../.;
+    src = lib.fileset.toSource {
+      root = ../.;
+      fileset = lib.fileset.unions [
+        ../icons
+        ../src
+        ../Cargo.lock
+        ../Cargo.toml
+
+        ../meson.build
+      ];
+    };
 
     cargoDeps = rustPlatform.importCargoLock {
       lockFile = "${finalAttrs.src}/Cargo.lock";
