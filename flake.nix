@@ -1,5 +1,5 @@
 {
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs?ref=nixos-unstable";
 
   outputs = {
     self,
@@ -8,7 +8,6 @@
   }: let
     systems = ["x86_64-linux" "aarch64-linux"];
     forEachSystem = nixpkgs.lib.genAttrs systems;
-
     pkgsForEach = nixpkgs.legacyPackages;
   in {
     devShells = forEachSystem (system: {
