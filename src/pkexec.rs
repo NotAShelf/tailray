@@ -17,11 +17,11 @@ pub enum PkexecError {
 pub fn get_path() -> Result<PathBuf, PkexecError> {
     match which("pkexec") {
         Ok(path) => {
-            debug!("pkexec found at: {:?}", path);
+            debug!("pkexec found at: {path:?}");
             Ok(path)
         }
         Err(e) => {
-            error!("pkexec not found in PATH: {}", e);
+            error!("pkexec not found in PATH: {e}");
             Err(PkexecError::Resolution(e))
         }
     }
@@ -32,7 +32,7 @@ pub fn get_path() -> Result<PathBuf, PkexecError> {
 /// This function never fails but logs warnings if pkexec can't be found
 pub fn get_path_or_default() -> PathBuf {
     get_path().unwrap_or_else(|e| {
-        error!("Using fallback path for pkexec: {}", e);
+        error!("Using fallback path for pkexec: {e}");
         PathBuf::from("/usr/bin/pkexec")
     })
 }

@@ -64,7 +64,7 @@ impl SysTray {
                 Ok(())
             }
             Err(e) => {
-                error!("Failed to update status: {}", e);
+                error!("Failed to update status: {e}");
                 Err(Box::new(TrayError::StatusUpdate(e.to_string())))
             }
         }
@@ -93,9 +93,9 @@ impl SysTray {
             .args(&args)
             .stdout(Stdio::piped())
             .spawn()
-            .and_then(|c| c.wait_with_output())
+            .and_then(std::process::Child::wait_with_output)
             .map_err(|e| {
-                error!("Failed to execute command: {}", e);
+                error!("Failed to execute command: {e}");
                 TrayError::Command(e.to_string())
             })?;
 
@@ -109,7 +109,7 @@ impl SysTray {
                 .icon(icon)
                 .show()
                 .map_err(|e| {
-                    error!("Failed to show notification: {}", e);
+                    error!("Failed to show notification: {e}");
                     TrayError::Notification(e.to_string())
                 })
         };
@@ -125,7 +125,7 @@ impl SysTray {
             )?;
             self.update_status()?;
         } else {
-            error!("Failed to {} Tailscale: {}", verb, stdout);
+            error!("Failed to {verb} Tailscale: {stdout}");
             notify(&format!("Connection {verb} failed"), &stdout, "error")?;
         }
 
@@ -174,7 +174,7 @@ impl Tray for SysTray {
         let device_name = self.ctx.status.this_machine.display_name.to_string();
 
         let message = format!("This device: {} ({})", device_name, self.ctx.ip);
-        debug!("Creating menu with device {}", message);
+        debug!("Creating menu with device {message}");
 
         // Prepare device submenus
         let (my_sub, serv_sub): (Vec<_>, Vec<_>) = self
@@ -305,7 +305,7 @@ impl Tray for SysTray {
     }
 
     fn watcher_offline(&self, reason: OfflineReason) -> bool {
-        info!("Watcher offline, signaling for reconnection: {:?}", reason);
+        info!("Watcher offline, signaling for reconnection: {reason:?}");
 
         // Signal the watchdog to respawn the tray
         crate::tray::utils::signal_respawn_needed();

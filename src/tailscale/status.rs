@@ -59,7 +59,7 @@ pub struct Status {
 pub fn get() -> Result<Status, Box<dyn Error>> {
     let status_json = get_json()?;
     let mut status: Status = serde_json::from_str(&status_json).map_err(|e| {
-        error!("Failed to parse Tailscale status: {}", e);
+        error!("Failed to parse Tailscale status: {e}");
         StatusError::ParseFailed(format!("{e}: {status_json}"))
     })?;
 
@@ -100,7 +100,7 @@ pub fn get_json() -> Result<String, Box<dyn Error>> {
         .arg("--json")
         .output()
         .map_err(|e| {
-            error!("Failed to execute tailscale command: {}", e);
+            error!("Failed to execute tailscale command: {e}");
             StatusError::CommandFailed(e.to_string())
         })?;
 
@@ -114,7 +114,7 @@ pub fn get_json() -> Result<String, Box<dyn Error>> {
     }
 
     let stdout = String::from_utf8(output.stdout).map_err(|e| {
-        error!("Invalid UTF-8 in output: {}", e);
+        error!("Invalid UTF-8 in output: {e}");
         StatusError::ParseFailed(format!("Invalid UTF-8 in output: {e}"))
     })?;
 

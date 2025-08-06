@@ -39,7 +39,7 @@ pub fn validate_peer_ip(peer_ip: &str) -> Result<(), PeerError> {
 
     // Basic IPv4/IPv6 validation
     if !peer_ip.contains('.') && !peer_ip.contains(':') {
-        error!("Invalid IP address format: {}", peer_ip);
+        error!("Invalid IP address format: {peer_ip}");
         return Err(PeerError::InvalidIP(format!("Invalid format: {peer_ip}")));
     }
 
@@ -59,19 +59,18 @@ pub fn copy_peer_ip(peer_ip: &str, notif_body: &str, host: bool) -> Result<(), B
     validate_peer_ip(peer_ip)?;
 
     copy(peer_ip).map_err(|e| {
-        error!("Failed to copy IP to clipboard: {}", e);
+        error!("Failed to copy IP to clipboard: {e}");
         PeerError::ClipboardError(e.to_string())
     })?;
 
     let clip_ip = get().map_err(|e| {
-        error!("Failed to verify clipboard contents: {}", e);
+        error!("Failed to verify clipboard contents: {e}");
         PeerError::ClipboardError(e.to_string())
     })?;
 
     if clip_ip != peer_ip {
         error!(
-            "Clipboard verification failed: expected '{}', got '{}'",
-            peer_ip, clip_ip
+            "Clipboard verification failed: expected '{peer_ip}', got '{clip_ip}'"
         );
         return Err(Box::new(PeerError::VerificationError(
             "Clipboard content doesn't match the copied IP".into(),
@@ -79,7 +78,7 @@ pub fn copy_peer_ip(peer_ip: &str, notif_body: &str, host: bool) -> Result<(), B
     }
 
     let summary = format!("Copied {} IP address", if host { "host" } else { "peer" });
-    info!("{} {} to clipboard", summary, clip_ip);
+    info!("{summary} {clip_ip} to clipboard");
 
     Notification::new()
         .summary(&summary)
@@ -88,7 +87,7 @@ pub fn copy_peer_ip(peer_ip: &str, notif_body: &str, host: bool) -> Result<(), B
         .timeout(3000)
         .show()
         .map_err(|e| {
-            error!("Failed to show notification: {}", e);
+            error!("Failed to show notification: {e}");
             PeerError::NotificationError(e.to_string())
         })?;
 

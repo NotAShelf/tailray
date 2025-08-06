@@ -19,7 +19,7 @@ fn main() {
 
     // Start tray service
     if let Err(e) = start_tray_service() {
-        error!("Tray service error: {}", e);
+        error!("Tray service error: {e}");
         exit(1);
     }
 
