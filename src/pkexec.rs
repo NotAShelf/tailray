@@ -18,10 +18,7 @@ pub enum PkexecError {
 /// Returns a Result containing either the path to pkexec or a `PkexecError`
 pub fn get_path() -> Result<PathBuf, PkexecError> {
     which("pkexec")
-        .map(|path| {
-            debug!("pkexec found at: {path:?}");
-            path
-        })
+        .inspect(|path| debug!("pkexec found at: {}", path.display()))
         .map_err(PkexecError::Resolution)
 }
 

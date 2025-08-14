@@ -69,9 +69,7 @@ pub fn copy_peer_ip(peer_ip: &str, notif_body: &str, host: bool) -> Result<(), B
     })?;
 
     if clip_ip != peer_ip {
-        error!(
-            "Clipboard verification failed: expected '{peer_ip}', got '{clip_ip}'"
-        );
+        error!("Clipboard verification failed: expected '{peer_ip}', got '{clip_ip}'");
         return Err(Box::new(PeerError::VerificationError(
             "Clipboard content doesn't match the copied IP".into(),
         )));

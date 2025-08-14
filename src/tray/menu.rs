@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use crate::pkexec::{get_path_or_default, should_elevate_perms};
 use crate::svg::renderer::Resvg;
 use crate::tailscale::peer::copy_peer_ip;
@@ -57,7 +58,7 @@ impl SysTray {
     }
 
     /// Updates the Tailscale status
-    pub fn update_status(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn update_status(&mut self) -> Result<(), AppError> {
         match get_current() {
             Ok(ctx) => {
                 self.ctx = ctx;
@@ -65,13 +66,13 @@ impl SysTray {
             }
             Err(e) => {
                 error!("Failed to update status: {e}");
-                Err(Box::new(TrayError::StatusUpdate(e.to_string())))
+                Err(AppError::Tray(TrayError::StatusUpdate(e.to_string())))
             }
         }
     }
 
     /// Executes a Tailscale service command (up/down)
-    pub fn do_service_link(&mut self, verb: &str) -> Result<(), Box<dyn Error>> {
+    pub fn do_service_link(&mut self, verb: &str) -> Result<(), AppError> {
         let elevate = should_elevate_perms();
         let (cmd, args) = if elevate {
             (get_path_or_default(), vec!["tailscale", verb])
@@ -96,7 +97,7 @@ impl SysTray {
             .and_then(std::process::Child::wait_with_output)
             .map_err(|e| {
                 error!("Failed to execute command: {e}");
-                TrayError::Command(e.to_string())
+                AppError::Tray(TrayError::Command(e.to_string()))
             })?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -110,7 +111,7 @@ impl SysTray {
                 .show()
                 .map_err(|e| {
                     error!("Failed to show notification: {e}");
-                    TrayError::Notification(e.to_string())
+                    AppError::Tray(TrayError::Notification(e.to_string()))
                 })
         };
 
@@ -169,6 +170,7 @@ impl Tray for SysTray {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn menu(&self) -> Vec<MenuItem<Self>> {
         let my_ip = self.ctx.ip.clone();
         let device_name = self.ctx.status.this_machine.display_name.to_string();

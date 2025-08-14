@@ -64,9 +64,7 @@ pub fn start_tray_service() -> Result<(), TrayServiceError> {
                         }
                         Err(e) => {
                             consecutive_failures += 1;
-                            error!(
-                                "Failed to respawn tray (attempt {consecutive_failures}): {e}"
-                            );
+                            error!("Failed to respawn tray (attempt {consecutive_failures}): {e}");
                         }
                     }
 
