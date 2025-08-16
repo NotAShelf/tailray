@@ -1,13 +1,13 @@
+use crate::error::AppError;
 use crate::pkexec::{get_path_or_default, should_elevate_perms};
 use crate::svg::renderer::Resvg;
 use crate::tailscale::peer::copy_peer_ip;
-use crate::tailscale::status::{get_current, Status};
+use crate::tailscale::status::{Status, get_current};
 use crate::tailscale::utils::PeerKind;
 
 use ksni::{
-    self,
+    self, Icon, MenuItem, OfflineReason, ToolTip, Tray,
     menu::{StandardItem, SubMenu},
-    Icon, MenuItem, OfflineReason, ToolTip, Tray,
 };
 
 use log::{debug, error, info};
@@ -58,80 +58,76 @@ impl SysTray {
     }
 
     /// Updates the Tailscale status
-    pub fn update_status(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn update_status(&mut self) -> Result<(), AppError> {
         match get_current() {
             Ok(ctx) => {
                 self.ctx = ctx;
                 Ok(())
             }
             Err(e) => {
-                error!("Failed to update status: {}", e);
-                Err(Box::new(TrayError::StatusUpdate(e.to_string())))
+                error!("Failed to update status: {e}");
+                Err(AppError::Tray(TrayError::StatusUpdate(e.to_string())))
             }
         }
     }
 
     /// Executes a Tailscale service command (up/down)
-    pub fn do_service_link(&mut self, verb: &str) -> Result<(), Box<dyn Error>> {
-        // Use the non-panicking version of get_path
-        let pkexec_path = get_path_or_default();
+    pub fn do_service_link(&mut self, verb: &str) -> Result<(), AppError> {
         let elevate = should_elevate_perms();
-
-        // Execute the appropriate command based on whether we need to elevate privileges
-        let command_result = if elevate {
-            info!("Elevating permissions for pkexec at: {:?}", pkexec_path);
-            Command::new(pkexec_path)
-                .arg("tailscale")
-                .arg(verb)
-                .stdout(Stdio::piped())
-                .spawn()
+        let (cmd, args) = if elevate {
+            (get_path_or_default(), vec!["tailscale", verb])
         } else {
-            info!("Running tailscale command without elevation");
-            Command::new("tailscale")
-                .arg(verb)
-                .stdout(Stdio::piped())
-                .spawn()
+            ("tailscale".into(), vec![verb])
         };
 
-        let command = command_result.map_err(|e| {
-            error!("Failed to execute command: {}", e);
-            TrayError::Command(e.to_string())
-        })?;
+        info!(
+            "{} permissions for {}",
+            if elevate {
+                "Elevating"
+            } else {
+                "Running without elevation"
+            },
+            cmd.display()
+        );
 
-        let output = command.wait_with_output().map_err(|e| {
-            error!("Command failed while waiting: {}", e);
-            TrayError::Command(e.to_string())
-        })?;
+        let output = Command::new(cmd)
+            .args(&args)
+            .stdout(Stdio::piped())
+            .spawn()
+            .and_then(std::process::Child::wait_with_output)
+            .map_err(|e| {
+                error!("Failed to execute command: {e}");
+                AppError::Tray(TrayError::Command(e.to_string()))
+            })?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         info!("Link {}: [{}]{}", verb, output.status, stdout);
 
-        if output.status.success() {
-            let verb_result = if verb.eq("up") { "online" } else { "offline" };
-
+        let notify = |summary: &str, body: &str, icon: &str| {
             Notification::new()
-                .summary(&format!("Connection {verb}"))
-                .body(&format!("Tailscale service {verb_result}"))
-                .icon("info")
+                .summary(summary)
+                .body(body)
+                .icon(icon)
                 .show()
                 .map_err(|e| {
-                    error!("Failed to show notification: {}", e);
-                    TrayError::Notification(e.to_string())
-                })?;
+                    error!("Failed to show notification: {e}");
+                    AppError::Tray(TrayError::Notification(e.to_string()))
+                })
+        };
 
+        if output.status.success() {
+            notify(
+                &format!("Connection {verb}"),
+                &format!(
+                    "Tailscale service {}",
+                    if verb == "up" { "online" } else { "offline" }
+                ),
+                "info",
+            )?;
             self.update_status()?;
         } else {
-            // Log failure and potentially notify user
-            error!("Failed to {} Tailscale: {}", verb, stdout);
-            Notification::new()
-                .summary(&format!("Connection {verb} failed"))
-                .body(&stdout)
-                .icon("error")
-                .show()
-                .map_err(|e| {
-                    error!("Failed to show error notification: {}", e);
-                    TrayError::Notification(e.to_string())
-                })?;
+            error!("Failed to {verb} Tailscale: {stdout}");
+            notify(&format!("Connection {verb} failed"), &stdout, "error")?;
         }
 
         Ok(())
@@ -174,46 +170,52 @@ impl Tray for SysTray {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn menu(&self) -> Vec<MenuItem<Self>> {
         let my_ip = self.ctx.ip.clone();
         let device_name = self.ctx.status.this_machine.display_name.to_string();
 
         let message = format!("This device: {} ({})", device_name, self.ctx.ip);
-        debug!("Creating menu with device {}", message);
+        debug!("Creating menu with device {message}");
 
         // Prepare device submenus
-        let mut my_sub = Vec::new();
-        let mut serv_sub = Vec::new();
-
-        for peer in &self.ctx.status.peers {
-            // Skip peers with no IPs
-            if peer.1.ips.is_empty() {
-                debug!("Skipping peer with no IPs: {:?}", peer.1.display_name);
-                continue;
-            }
-
-            let ip = peer.1.ips[0].clone();
-            let name = &peer.1.display_name;
-
-            // Choose which submenu based on peer type
-            let sub = match name {
-                PeerKind::DNSName(_) => &mut serv_sub,
-                PeerKind::HostName(_) => &mut my_sub,
-            };
-
-            let peer_title = format!("{name} ({ip})");
-            let display_name = name.to_string();
-            let menu = MenuItem::Standard(StandardItem {
-                label: format!("{display_name}\t({ip})"),
-                activate: Box::new(move |_: &mut Self| {
-                    if let Err(e) = copy_peer_ip(&ip, &peer_title, false) {
-                        error!("Failed to copy peer IP: {e}");
+        let (my_sub, serv_sub): (Vec<_>, Vec<_>) = self
+            .ctx
+            .status
+            .peers
+            .iter()
+            .filter(|(_, peer)| !peer.ips.is_empty())
+            .map(|(_, peer)| {
+                let ip = peer.ips[0].clone();
+                let name = &peer.display_name;
+                let peer_title = format!("{name} ({ip})");
+                let display_name = name.to_string();
+                let menu = MenuItem::Standard(StandardItem {
+                    label: format!("{display_name}\t({ip})"),
+                    activate: Box::new(move |_: &mut Self| {
+                        if let Err(e) = copy_peer_ip(&ip, &peer_title, false) {
+                            error!("Failed to copy peer IP: {e}");
+                        }
+                    }),
+                    ..Default::default()
+                });
+                match name {
+                    PeerKind::DNSName(_) => (None, Some(menu)),
+                    PeerKind::HostName(_) => (Some(menu), None),
+                }
+            })
+            .fold(
+                (Vec::new(), Vec::new()),
+                |(mut my, mut serv), (my_item, serv_item)| {
+                    if let Some(item) = my_item {
+                        my.push(item);
                     }
-                }),
-                ..Default::default()
-            });
-            sub.push(menu);
-        }
+                    if let Some(item) = serv_item {
+                        serv.push(item);
+                    }
+                    (my, serv)
+                },
+            );
 
         vec![
             StandardItem {
@@ -305,7 +307,7 @@ impl Tray for SysTray {
     }
 
     fn watcher_offline(&self, reason: OfflineReason) -> bool {
-        info!("Watcher offline, signaling for reconnection: {:?}", reason);
+        info!("Watcher offline, signaling for reconnection: {reason:?}");
 
         // Signal the watchdog to respawn the tray
         crate::tray::utils::signal_respawn_needed();

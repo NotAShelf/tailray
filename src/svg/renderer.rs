@@ -82,7 +82,7 @@ impl Resvg<'_> {
             match renderer.to_icon(SVG_DATA) {
                 Ok(icon) => vec![icon],
                 Err(e) => {
-                    error!("Failed to load enabled icon: {}", e);
+                    error!("Failed to load enabled icon: {e}");
                     Vec::new()
                 }
             }
@@ -93,7 +93,7 @@ impl Resvg<'_> {
             match renderer.to_icon(&disabled_svg) {
                 Ok(icon) => vec![icon],
                 Err(e) => {
-                    error!("Failed to load disabled icon: {}", e);
+                    error!("Failed to load disabled icon: {e}");
                     Vec::new()
                 }
             }

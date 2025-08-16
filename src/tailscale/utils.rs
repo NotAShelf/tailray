@@ -62,57 +62,42 @@ pub struct User {
     extra: std::collections::HashMap<String, serde_json::Value>,
 }
 
-pub fn has_suffix(name: &str, suffix: &str) -> bool {
-    let name = name.trim_end_matches('.');
-    let suffix = suffix.trim_end_matches('.').trim_start_matches('.');
-
-    let name_base = name.trim_end_matches(suffix);
-    name_base.len() < name.len() && name_base.ends_with('.')
-}
-
 pub fn trim_suffix(name: &str, suffix: &str) -> String {
-    if !has_suffix(name, suffix) {
-        return name.trim_end_matches('.').to_string();
+    let name = name.trim_end_matches('.');
+    let suffix = suffix.trim_matches('.');
+    if name.ends_with(suffix) && name[..name.len() - suffix.len()].ends_with('.') {
+        name[..name.len() - suffix.len() - 1].to_string()
+    } else {
+        name.to_string()
     }
-
-    let suffix = suffix.trim_start_matches('.').trim_end_matches('.');
-    let mut result = name.trim_end_matches('.');
-    result = result.trim_end_matches(suffix);
-    result.trim_end_matches('.').to_string()
 }
 
 pub fn sanitize_hostname(hostname: &str) -> String {
     const MAX_LABEL_LENGTH: usize = 63;
-
-    // Trim suffixes
     let hostname = hostname
         .trim_end_matches(".local")
         .trim_end_matches(".localdomain")
         .trim_end_matches(".lan");
 
-    // Find the first/last alphanumeric characters
-    let start = hostname.find(|c: char| c.is_alphanumeric()).unwrap_or(0);
-    let end = hostname
-        .rfind(|c: char| c.is_alphanumeric())
+    let chars: Vec<char> = hostname.chars().collect();
+    let start = chars.iter().position(|c| c.is_alphanumeric()).unwrap_or(0);
+    let end = chars
+        .iter()
+        .rposition(|c| c.is_alphanumeric())
         .map_or(0, |e| e + 1);
 
     let separators: HashSet<char> = [' ', '.', '@', '_'].into();
-
-    let mut sanitized: String = hostname[start..end]
-        .chars()
-        .enumerate()
-        .map(|(index, c)| {
-            let boundary = (index == 0) || (index == end - start - 1);
-            if !boundary && separators.contains(&c) {
-                '-'
-            } else if c.is_alphanumeric() || c == '-' {
-                c.to_ascii_lowercase()
-            } else {
-                c
-            }
-        })
-        .collect();
-
+    let mut sanitized = String::with_capacity(end.saturating_sub(start));
+    for (i, &c) in chars[start..end].iter().enumerate() {
+        let boundary = i == 0 || i == end - start - 1;
+        sanitized.push(if !boundary && separators.contains(&c) {
+            '-'
+        } else if c.is_alphanumeric() || c == '-' {
+            c.to_ascii_lowercase()
+        } else {
+            c
+        });
+    }
     sanitized.truncate(MAX_LABEL_LENGTH);
     sanitized
 }
