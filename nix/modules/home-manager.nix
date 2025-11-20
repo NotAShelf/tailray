@@ -17,7 +17,7 @@ in {
     package =
       mkPackageOption pkgs "tailray" {}
       // {
-        default = self.packages.${pkgs.system}.tailray;
+        default = self.packages.${pkgs.stdenv.hostPlatform.system}.tailray;
       };
   };
 
