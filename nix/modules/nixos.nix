@@ -4,8 +4,10 @@ self: {
   lib,
   ...
 }: let
-  inherit (lib.options) mkEnableOption mkPackageOption;
+  inherit (lib.options) mkEnableOption mkPackageOption mkOption;
   inherit (lib.meta) getExe;
+  inherit (lib.types) nullOr str;
+  inherit (lib) mkIf;
 
   cfg = config.services.tailray;
 in {
@@ -19,9 +21,16 @@ in {
       // {
         default = self.packages.${pkgs.stdenv.hostPlatform.system}.tailray;
       };
+
+    adminUrl = mkOption {
+      description = "The URL the Admin Console button should point to";
+      type = nullOr str;
+      default = null;
+      example = "https://headplane.example.com/admin/login";
+    };
   };
 
-  config = lib.mkIf cfg.enable {
+  config = mkIf cfg.enable {
     environment.systemPackages = [cfg.package];
 
     systemd.services.tailray = {
@@ -31,6 +40,8 @@ in {
         Restart = "always";
         RestartSec = "10";
       };
+
+      environment.TAILRAY_ADMIN_URL = mkIf (cfg.adminUrl != null) cfg.adminUrl;
     };
   };
 }
