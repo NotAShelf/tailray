@@ -83,10 +83,13 @@ impl SysTray {
   /// Executes a Tailscale service command (up/down)
   pub fn do_service_link(&mut self, verb: &str) -> Result<(), AppError> {
     let elevate = should_elevate_perms();
-    let (cmd, args) = if elevate {
-      (get_path_or_default(), vec!["tailscale", verb])
+    let (cmd, args): (_, Box<dyn Iterator<Item = &str>>) = if elevate {
+      (
+        get_path_or_default(),
+        Box::new(["tailscale", verb].into_iter()),
+      )
     } else {
-      ("tailscale".into(), vec![verb])
+      ("tailscale".into(), Box::new([verb].into_iter()))
     };
 
     info!(
@@ -100,7 +103,7 @@ impl SysTray {
     );
 
     let output = Command::new(cmd)
-      .args(&args)
+      .args(args)
       .stdout(Stdio::piped())
       .spawn()
       .and_then(std::process::Child::wait_with_output)
@@ -181,8 +184,7 @@ impl Tray for SysTray {
 
   #[allow(clippy::too_many_lines)]
   fn menu(&self) -> Vec<MenuItem<Self>> {
-    let my_ip = self.ctx.ip.clone();
-    let device_name = self.ctx.status.this_machine.display_name.to_string();
+    let device_name = &self.ctx.status.this_machine.display_name;
 
     let message = format!("This device: {} ({})", device_name, self.ctx.ip);
     debug!("Creating menu with device {message}");
@@ -198,9 +200,8 @@ impl Tray for SysTray {
         let ip = peer.ips[0].clone();
         let name = &peer.display_name;
         let peer_title = format!("{name} ({ip})");
-        let display_name = name.to_string();
         let menu = MenuItem::Standard(StandardItem {
-          label: format!("{display_name}\t({ip})"),
+          label: format!("{name}\t({ip})"),
           activate: Box::new(move |_: &mut Self| {
             if let Err(e) = copy_peer_ip(&ip, &peer_title, false) {
               error!("Failed to copy peer IP: {e}");
@@ -257,8 +258,8 @@ impl Tray for SysTray {
       StandardItem {
         label: message.clone(),
         icon_name: "computer-symbolic".into(),
-        activate: Box::new(move |_| {
-          if let Err(e) = copy_peer_ip(&my_ip, &message, true) {
+        activate: Box::new(move |this: &mut Self| {
+          if let Err(e) = copy_peer_ip(&this.ctx.ip, &message, true) {
             error!("Failed to copy IP for this device: {e}");
           }
         }),

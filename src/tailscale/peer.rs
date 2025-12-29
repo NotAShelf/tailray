@@ -3,10 +3,7 @@ use std::{error::Error, fmt};
 use log::{error, info};
 use notify_rust::Notification;
 
-use crate::{
-  clipboard::{copy, get},
-  error::AppError,
-};
+use crate::{clipboard::copy_and_get, error::AppError};
 
 /// Custom error type for peer operations
 #[derive(Debug)]
@@ -66,13 +63,8 @@ pub fn copy_peer_ip(
 ) -> Result<(), AppError> {
   validate_peer_ip(peer_ip).map_err(AppError::Peer)?;
 
-  copy(peer_ip).map_err(|e| {
+  let clip_ip = copy_and_get(peer_ip).map_err(|e| {
     error!("Failed to copy IP to clipboard: {e}");
-    AppError::Peer(PeerError::ClipboardError(e.to_string()))
-  })?;
-
-  let clip_ip = get().map_err(|e| {
-    error!("Failed to verify clipboard contents: {e}");
     AppError::Peer(PeerError::ClipboardError(e.to_string()))
   })?;
 

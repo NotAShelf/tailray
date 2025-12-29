@@ -29,7 +29,7 @@ pub fn get_path() -> Result<PathBuf, PkexecError> {
 pub fn get_path_or_default() -> PathBuf {
   get_path().unwrap_or_else(|e| {
     error!("Using fallback path for pkexec: {e}");
-    PathBuf::from(FALLBACK_PKEXEC_PATH)
+    FALLBACK_PKEXEC_PATH.into()
   })
 }
 

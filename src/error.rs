@@ -21,6 +21,7 @@ pub enum AppError {
   Io(std::io::Error),
   SerdeJson(serde_json::Error),
   Notify(notify_rust::error::Error),
+  Ksni(ksni::Error),
 
   // Generic string error
   Message(String),
@@ -38,6 +39,7 @@ impl fmt::Display for AppError {
       AppError::Io(e) => write!(f, "IO error: {e}"),
       AppError::SerdeJson(e) => write!(f, "JSON error: {e}"),
       AppError::Notify(e) => write!(f, "Notification error: {e}"),
+      AppError::Ksni(e) => write!(f, "Ksni error: {e}"),
       AppError::Message(msg) => write!(f, "{msg}"),
     }
   }
@@ -55,6 +57,7 @@ impl Error for AppError {
       AppError::Io(e) => Some(e),
       AppError::SerdeJson(e) => Some(e),
       AppError::Notify(e) => Some(e),
+      AppError::Ksni(e) => Some(e),
       AppError::Message(_) => None,
     }
   }
@@ -131,6 +134,6 @@ impl From<Box<dyn std::error::Error>> for AppError {
 // From conversion for ksni::Error
 impl From<ksni::Error> for AppError {
   fn from(e: ksni::Error) -> Self {
-    AppError::Message(e.to_string())
+    AppError::Ksni(e)
   }
 }
