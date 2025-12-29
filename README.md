@@ -29,8 +29,26 @@ check its status with `systemctl status tailscaled`. After you confirm that
 Tailscale is running, and that you are authenticated run `tailray` from a
 terminal or consider writing a Systemd service for it.
 
-Alternatively, start it directly with `tailray.` A Tailscale icon will appear in
-your system tray. Click on it to access the menu:
+### Theming
+
+Tailray supports light and dark themes for the tray icon. The theme can be set
+via the `TAILRAY_THEME` environment variable:
+
+- `TAILRAY_THEME=light` (default): Light theme icons
+- `TAILRAY_THEME=dark`: Dark theme icons
+
+Example:
+
+```bash
+TAILRAY_THEME=dark tailray
+```
+
+If an invalid value is provided, Tailray will default to the light theme.
+
+### Tray Features
+
+Start Tailray directly with `tailray`. A Tailscale icon will appear in your
+system tray. Click on it to access the menu:
 
 - Connect/Disconnect: Toggle your Tailscale connection
 - This device: View and copy your device's Tailscale IP address
@@ -53,6 +71,16 @@ The recommended way of building Tailray is with the Nix build tool. You may run
 `nix develop` in the repository to enter a devShell with the necessary
 dependencies. Direnv users may also use `direnv allow` to let Direnv handle
 their shell environment.
+
+### Building with Cargo
+
+If you prefer building with Cargo directly:
+
+```bash
+cargo build --release
+```
+
+The binary will be available at `target/release/tailray`.
 
 ## License
 
