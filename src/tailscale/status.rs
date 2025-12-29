@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
   error::AppError,
+  svg::renderer::Theme,
   tailscale::{
     utils,
     utils::{Machine, User},
@@ -97,8 +98,9 @@ pub fn get_current() -> Result<Context, AppError> {
   }
 
   Ok(Context {
-    ip: status.this_machine.ips[0].clone(),
+    ip:     status.this_machine.ips[0].clone(),
     status,
+    theme:  Theme::from_env(),
   })
 }
 

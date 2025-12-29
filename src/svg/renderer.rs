@@ -8,10 +8,46 @@ use resvg::{
   usvg::{Options, Tree},
 };
 
-const SVG_DATA: &str = include_str!("assets/tailscale.svg");
+const SVG_DATA_LIGHT: &str = include_str!("assets/tailscale-light.svg");
+const SVG_DATA_DARK: &str = include_str!("assets/tailscale-dark.svg");
 
 const DISABLED_OPACITY: &str = "0.4";
 const ENABLED_OPACITY: &str = "1.0";
+
+/// Icon theme variant
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Theme {
+  #[default]
+  Light,
+  Dark,
+}
+
+impl Theme {
+  /// Parse theme from environment variable TAILRAY_THEME
+  pub fn from_env() -> Self {
+    std::env::var("TAILRAY_THEME")
+      .map(|s| {
+        let s = s.to_lowercase();
+        match s.as_str() {
+          "dark" => Theme::Dark,
+          "light" => Theme::Light,
+          _ => {
+            log::warn!("Invalid theme value '{s}', defaulting to light");
+            Theme::Light
+          },
+        }
+      })
+      .unwrap_or_default()
+  }
+
+  /// Get the SVG data for this theme
+  const fn svg_data(&self) -> &'static str {
+    match self {
+      Self::Light => SVG_DATA_LIGHT,
+      Self::Dark => SVG_DATA_DARK,
+    }
+  }
+}
 
 #[derive(Debug)]
 pub enum RenderError {
@@ -74,13 +110,14 @@ impl Resvg<'_> {
     })
   }
 
-  /// Load appropriate icon based on connection state
-  pub fn load_icon(enabled: bool) -> Vec<Icon> {
+  /// Load appropriate icon based on connection state and theme
+  pub fn load_icon(theme: Theme, enabled: bool) -> Vec<Icon> {
     let renderer = Self::default();
+    let svg_data = theme.svg_data();
 
     if enabled {
-      debug!("Loading enabled Tailscale icon");
-      match renderer.to_icon(SVG_DATA) {
+      debug!("Loading enabled Tailscale icon (theme: {theme:?})");
+      match renderer.to_icon(svg_data) {
         Ok(icon) => vec![icon],
         Err(e) => {
           error!("Failed to load enabled icon: {e}");
@@ -88,9 +125,9 @@ impl Resvg<'_> {
         },
       }
     } else {
-      debug!("Loading disabled Tailscale icon");
+      debug!("Loading disabled Tailscale icon (theme: {theme:?})");
       // Replace opacity in SVG
-      let disabled_svg = SVG_DATA.replace(ENABLED_OPACITY, DISABLED_OPACITY);
+      let disabled_svg = svg_data.replace(ENABLED_OPACITY, DISABLED_OPACITY);
       match renderer.to_icon(&disabled_svg) {
         Ok(icon) => vec![icon],
         Err(e) => {

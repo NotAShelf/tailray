@@ -19,7 +19,7 @@ use notify_rust::Notification;
 use crate::{
   error::AppError,
   pkexec::{get_path_or_default, should_elevate_perms},
-  svg::renderer::Resvg,
+  svg::renderer::{Resvg, Theme},
   tailscale::{
     peer::copy_peer_ip,
     status::{Status, get_current},
@@ -48,10 +48,21 @@ impl fmt::Display for TrayError {
 impl Error for TrayError {}
 
 /// Represents the context for the system tray
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Context {
   pub ip:     String,
   pub status: Status,
+  pub theme:  Theme,
+}
+
+impl Default for Context {
+  fn default() -> Self {
+    Self {
+      ip:     String::default(),
+      status: Status::default(),
+      theme:  Theme::from_env(),
+    }
+  }
 }
 
 /// The main `SystemTray` implementation
@@ -148,15 +159,11 @@ impl SysTray {
 
 impl Tray for SysTray {
   fn icon_name(&self) -> String {
-    if self.enabled() {
-      "tailscale-online".into()
-    } else {
-      "tailscale-offline".into()
-    }
+    String::new()
   }
 
   fn icon_pixmap(&self) -> Vec<Icon> {
-    Resvg::load_icon(self.enabled())
+    Resvg::load_icon(self.ctx.theme, self.enabled())
   }
 
   fn id(&self) -> String {
