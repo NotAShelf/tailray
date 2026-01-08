@@ -7,8 +7,13 @@
     nixpkgs,
     ...
   }: let
-    systems = ["x86_64-linux" "aarch64-linux"];
-    forEachSystem = nixpkgs.lib.genAttrs systems;
+    # We cannot actually support all systems covered in flakeExposed
+    # but I *really* doubt we'll get anyone running anything other than
+    # Linux and Darwin, or very rarely BSD. If those people come to my
+    # issue tracker, I might as well try to support those platforms.
+    # Who the hell uses powerpc in 2026?
+    systems = nixpkgs.lib.systems.flakeExposed;
+    forEachSystem = nixpkgs.lib.attrsets.genAttrs systems;
     pkgsForEach = nixpkgs.legacyPackages;
   in {
     devShells = forEachSystem (system: {
