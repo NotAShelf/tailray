@@ -1,8 +1,4 @@
-use std::{
-  error::Error,
-  fmt,
-  process::{Command, Stdio},
-};
+use std::{error::Error, fmt};
 
 use ksni::{
   self,
@@ -17,8 +13,8 @@ use log::{debug, error, info};
 use notify_rust::Notification;
 
 use crate::{
+  elevation::run_with_elevation,
   error::AppError,
-  pkexec::{get_path_or_default, should_elevate_perms},
   svg::renderer::{Resvg, Theme},
   tailscale::{
     peer::copy_peer_ip,
@@ -93,67 +89,58 @@ impl SysTray {
 
   /// Executes a Tailscale service command (up/down)
   pub fn do_service_link(&mut self, verb: &str) -> Result<(), AppError> {
-    let elevate = should_elevate_perms();
-    let (cmd, args): (_, Box<dyn Iterator<Item = &str>>) = if elevate {
-      (
-        get_path_or_default(),
-        Box::new(["tailscale", verb].into_iter()),
-      )
-    } else {
-      ("tailscale".into(), Box::new([verb].into_iter()))
-    };
+    match run_with_elevation("tailscale", &[verb]) {
+      Ok(_) => {
+        info!("Link {}: success", verb);
 
-    info!(
-      "{} permissions for {}",
-      if elevate {
-        "Elevating"
-      } else {
-        "Running without elevation"
+        let notify = |summary: &str, body: &str, icon: &str| {
+          Notification::new()
+            .summary(summary)
+            .body(body)
+            .icon(icon)
+            .show()
+            .map_err(|e| {
+              error!("Failed to show notification: {e}");
+              AppError::Tray(TrayError::Notification(e.to_string()))
+            })
+        };
+
+        notify(
+          &format!("Connection {verb}"),
+          &format!(
+            "Tailscale service {}",
+            if verb == "up" { "online" } else { "offline" }
+          ),
+          "info",
+        )?;
+        self.update_status()?;
+
+        Ok(())
       },
-      cmd.display()
-    );
-
-    let output = Command::new(cmd)
-      .args(args)
-      .stdout(Stdio::piped())
-      .spawn()
-      .and_then(std::process::Child::wait_with_output)
-      .map_err(|e| {
+      Err(e) => {
         error!("Failed to execute command: {e}");
-        AppError::Tray(TrayError::Command(e.to_string()))
-      })?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    info!("Link {}: [{}]{}", verb, output.status, stdout);
+        let notify = |summary: &str, body: &str, icon: &str| {
+          Notification::new()
+            .summary(summary)
+            .body(body)
+            .icon(icon)
+            .show()
+            .map_err(|e| {
+              error!("Failed to show notification: {e}");
+              AppError::Tray(TrayError::Notification(e.to_string()))
+            })
+        };
 
-    let notify = |summary: &str, body: &str, icon: &str| {
-      Notification::new()
-        .summary(summary)
-        .body(body)
-        .icon(icon)
-        .show()
-        .map_err(|e| {
-          error!("Failed to show notification: {e}");
-          AppError::Tray(TrayError::Notification(e.to_string()))
-        })
-    };
+        notify(
+          "Connection Failed",
+          &format!("Failed to {verb} Tailscale: {e}"),
+          "error",
+        )?;
 
-    if output.status.success() {
-      notify(
-        &format!("Connection {verb}"),
-        &format!(
-          "Tailscale service {}",
-          if verb == "up" { "online" } else { "offline" }
-        ),
-        "info",
-      )?;
-      self.update_status()?;
-    } else {
-      error!("Failed to {verb} Tailscale: {stdout}");
-      notify(&format!("Connection {verb} failed"), &stdout, "error")?;
+        Err(AppError::Tray(TrayError::Command(e.to_string())))
+      },
     }
-
-    Ok(())
   }
 }
 

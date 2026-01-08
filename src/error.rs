@@ -1,7 +1,6 @@
 use std::{error::Error, fmt};
 
 use crate::{
-  pkexec::PkexecError,
   svg::renderer::RenderError,
   tailscale::{peer::PeerError, status::StatusError},
   tray::menu::TrayError,
@@ -10,7 +9,6 @@ use crate::{
 #[derive(Debug)]
 pub enum AppError {
   // Subsystem errors
-  Pkexec(PkexecError),
   Render(RenderError),
   Peer(PeerError),
   Status(StatusError),
@@ -30,7 +28,6 @@ pub enum AppError {
 impl fmt::Display for AppError {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
-      AppError::Pkexec(e) => write!(f, "Pkexec error: {e}"),
       AppError::Render(e) => write!(f, "SVG render error: {e}"),
       AppError::Peer(e) => write!(f, "Peer error: {e}"),
       AppError::Status(e) => write!(f, "Tailscale status error: {e}"),
@@ -48,7 +45,6 @@ impl fmt::Display for AppError {
 impl Error for AppError {
   fn source(&self) -> Option<&(dyn Error + 'static)> {
     match self {
-      AppError::Pkexec(e) => Some(e),
       AppError::Render(e) => Some(e),
       AppError::Peer(e) => Some(e),
       AppError::Status(e) => Some(e),
@@ -64,11 +60,6 @@ impl Error for AppError {
 }
 
 // From conversions for subsystem errors
-impl From<PkexecError> for AppError {
-  fn from(e: PkexecError) -> Self {
-    AppError::Pkexec(e)
-  }
-}
 impl From<RenderError> for AppError {
   fn from(e: RenderError) -> Self {
     AppError::Render(e)

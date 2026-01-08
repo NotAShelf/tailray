@@ -1,6 +1,6 @@
 mod clipboard;
+mod elevation;
 mod error;
-mod pkexec;
 mod svg;
 mod tailscale;
 mod tray;

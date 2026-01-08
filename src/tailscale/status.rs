@@ -98,9 +98,9 @@ pub fn get_current() -> Result<Context, AppError> {
   }
 
   Ok(Context {
-    ip:     status.this_machine.ips[0].clone(),
+    ip: status.this_machine.ips[0].clone(),
     status,
-    theme:  Theme::from_env(),
+    theme: Theme::from_env(),
   })
 }
 
