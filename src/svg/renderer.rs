@@ -1,12 +1,12 @@
 use std::{error::Error, fmt};
 
-use ksni::Icon;
 use log::{debug, error};
 use resvg::{
   self,
   tiny_skia::{Pixmap, Transform},
   usvg::{Options, Tree},
 };
+use tray_icon::Icon;
 
 const SVG_DATA_LIGHT: &str = include_str!("assets/tailscale-light.svg");
 const SVG_DATA_DARK: &str = include_str!("assets/tailscale-dark.svg");
@@ -74,7 +74,7 @@ pub struct Resvg<'a> {
 }
 
 impl Resvg<'_> {
-  /// Convert an SVG string to a KDE Systray Icon
+  /// Convert an SVG string to a tray icon
   #[allow(clippy::cast_sign_loss)]
   #[allow(clippy::cast_possible_truncation)]
   pub fn to_icon(&self, svg_str: &str) -> Result<Icon, RenderError> {
@@ -95,33 +95,26 @@ impl Resvg<'_> {
     // Render the SVG to the pixmap
     resvg::render(&tree, self.transform, &mut pixmap.as_mut());
 
-    // Convert from RGBA to ARGB format for KDE system tray
-    let argb_data: Vec<u8> = pixmap
-      .take()
-      .chunks_exact(4)
-      .flat_map(|rgba| [rgba[3], rgba[0], rgba[1], rgba[2]])
-      .collect();
+    // Get RGBA data
+    let rgba_data = pixmap.take();
 
-    // Create the Icon
-    Ok(Icon {
-      width:  size.width() as i32,
-      height: size.height() as i32,
-      data:   argb_data,
-    })
+    // Create the Icon using from_rgba
+    Icon::from_rgba(rgba_data, width, height)
+      .map_err(|e| RenderError::PixmapCreation(e.to_string()))
   }
 
   /// Load appropriate icon based on connection state and theme
-  pub fn load_icon(theme: Theme, enabled: bool) -> Vec<Icon> {
+  pub fn load_icon(theme: Theme, enabled: bool) -> Option<Icon> {
     let renderer = Self::default();
     let svg_data = theme.svg_data();
 
     if enabled {
       debug!("Loading enabled Tailscale icon (theme: {theme:?})");
       match renderer.to_icon(svg_data) {
-        Ok(icon) => vec![icon],
+        Ok(icon) => Some(icon),
         Err(e) => {
           error!("Failed to load enabled icon: {e}");
-          Vec::new()
+          None
         },
       }
     } else {
@@ -129,10 +122,10 @@ impl Resvg<'_> {
       // Replace opacity in SVG
       let disabled_svg = svg_data.replace(ENABLED_OPACITY, DISABLED_OPACITY);
       match renderer.to_icon(&disabled_svg) {
-        Ok(icon) => vec![icon],
+        Ok(icon) => Some(icon),
         Err(e) => {
           error!("Failed to load disabled icon: {e}");
-          Vec::new()
+          None
         },
       }
     }
