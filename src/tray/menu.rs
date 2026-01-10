@@ -1,21 +1,13 @@
 use std::{error::Error, fmt};
 
-use ksni::{
-  self,
-  Icon,
-  MenuItem,
-  OfflineReason,
-  ToolTip,
-  Tray,
-  menu::{StandardItem, SubMenu},
-};
 use log::{debug, error, info};
+use muda::{Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 use notify_rust::Notification;
 
 use crate::{
   elevation::run_with_elevation,
   error::AppError,
-  svg::renderer::{Resvg, Theme},
+  svg::renderer::Theme,
   tailscale::{
     peer::copy_peer_ip,
     status::{Status, get_current},
@@ -73,6 +65,24 @@ impl SysTray {
     self.ctx.status.tailscale_up
   }
 
+  /// Helper function to show notifications with consistent error handling
+  fn show_notification(
+    summary: &str,
+    body: &str,
+    icon: &str,
+  ) -> Result<(), AppError> {
+    Notification::new()
+      .summary(summary)
+      .body(body)
+      .icon(icon)
+      .show()
+      .map(|_| ())
+      .map_err(|e| {
+        error!("Failed to show notification: {e}");
+        AppError::Tray(TrayError::Notification(e.to_string()))
+      })
+  }
+
   /// Updates the Tailscale status
   pub fn update_status(&mut self) -> Result<(), AppError> {
     match get_current() {
@@ -93,19 +103,7 @@ impl SysTray {
       Ok(_) => {
         info!("Link {}: success", verb);
 
-        let notify = |summary: &str, body: &str, icon: &str| {
-          Notification::new()
-            .summary(summary)
-            .body(body)
-            .icon(icon)
-            .show()
-            .map_err(|e| {
-              error!("Failed to show notification: {e}");
-              AppError::Tray(TrayError::Notification(e.to_string()))
-            })
-        };
-
-        notify(
+        Self::show_notification(
           &format!("Connection {verb}"),
           &format!(
             "Tailscale service {}",
@@ -120,19 +118,7 @@ impl SysTray {
       Err(e) => {
         error!("Failed to execute command: {e}");
 
-        let notify = |summary: &str, body: &str, icon: &str| {
-          Notification::new()
-            .summary(summary)
-            .body(body)
-            .icon(icon)
-            .show()
-            .map_err(|e| {
-              error!("Failed to show notification: {e}");
-              AppError::Tray(TrayError::Notification(e.to_string()))
-            })
-        };
-
-        notify(
+        Self::show_notification(
           "Connection Failed",
           &format!("Failed to {verb} Tailscale: {e}"),
           "error",
@@ -142,183 +128,162 @@ impl SysTray {
       },
     }
   }
-}
 
-impl Tray for SysTray {
-  fn icon_name(&self) -> String {
-    String::new()
-  }
-
-  fn icon_pixmap(&self) -> Vec<Icon> {
-    Resvg::load_icon(self.ctx.theme, self.enabled())
-  }
-
-  fn id(&self) -> String {
-    env!("CARGO_PKG_NAME").into()
-  }
-
-  fn title(&self) -> String {
-    "Tailray".into()
-  }
-
-  fn tool_tip(&self) -> ToolTip {
-    let state = if self.enabled() {
-      "Connected"
-    } else {
-      "Disconnected"
-    };
-
-    ToolTip {
-      title:       format!("Tailscale: {state}"),
-      description: String::default(),
-      icon_name:   String::default(),
-      icon_pixmap: Vec::default(),
-    }
-  }
-
+  /// Builds the tray menu with identical structure to the ksni version
   #[allow(clippy::too_many_lines)]
-  fn menu(&self) -> Vec<MenuItem<Self>> {
+  pub fn build_menu(&self) -> Result<Menu, Box<dyn Error>> {
+    let menu = Menu::new();
     let device_name = &self.ctx.status.this_machine.display_name;
-
     let message = format!("This device: {} ({})", device_name, self.ctx.ip);
     debug!("Creating menu with device {message}");
 
-    // Prepare device submenus
-    let (my_sub, serv_sub): (Vec<_>, Vec<_>) = self
+    // Connect menu item
+    menu.append(&MenuItem::with_id(
+      MenuId::new("connect"),
+      "Connect",
+      !self.enabled(),
+      None,
+    ))?;
+
+    // Disconnect menu item
+    menu.append(&MenuItem::with_id(
+      MenuId::new("disconnect"),
+      "Disconnect",
+      self.enabled(),
+      None,
+    ))?;
+
+    // Separator
+    menu.append(&PredefinedMenuItem::separator())?;
+
+    // This device menu item
+    menu.append(&MenuItem::with_id(
+      MenuId::new("this_device"),
+      &message,
+      true,
+      None,
+    ))?;
+
+    // Network devices submenu
+    let network_devices_menu =
+      Submenu::with_id("network_devices", "Network Devices", true);
+
+    // My Devices submenu
+    let my_devices_submenu = Submenu::with_id("my_devices", "My Devices", true);
+    // Tailscale Services submenu
+    let services_submenu =
+      Submenu::with_id("tailscale_services", "Tailscale Services", true);
+
+    // Populate device submenus
+    for (_, peer) in self
       .ctx
       .status
       .peers
       .iter()
       .filter(|(_, peer)| !peer.ips.is_empty())
-      .map(|(_, peer)| {
-        let ip = peer.ips[0].clone();
-        let name = &peer.display_name;
-        let peer_title = format!("{name} ({ip})");
-        let menu = MenuItem::Standard(StandardItem {
-          label: format!("{name}\t({ip})"),
-          activate: Box::new(move |_: &mut Self| {
-            if let Err(e) = copy_peer_ip(&ip, &peer_title, false) {
-              error!("Failed to copy peer IP: {e}");
-            }
-          }),
-          ..Default::default()
-        });
-        match name {
-          PeerKind::DNSName(_) => (None, Some(menu)),
-          PeerKind::HostName(_) => (Some(menu), None),
-        }
-      })
-      .fold(
-        (Vec::new(), Vec::new()),
-        |(mut my, mut serv), (my_item, serv_item)| {
-          if let Some(item) = my_item {
-            my.push(item);
-          }
-          if let Some(item) = serv_item {
-            serv.push(item);
-          }
-          (my, serv)
+    {
+      let ip = &peer.ips[0];
+      let name = &peer.display_name;
+      let peer_label = format!("{name}\t({ip})");
+      let peer_id = format!("peer_{}", ip.replace(['.', ':'], "_"));
+
+      let peer_item =
+        MenuItem::with_id(MenuId::new(&peer_id), peer_label, true, None);
+
+      match name {
+        PeerKind::HostName(_) => {
+          my_devices_submenu.append(&peer_item)?;
         },
-      );
+        PeerKind::DNSName(_) => {
+          services_submenu.append(&peer_item)?;
+        },
+      }
+    }
 
-    vec![
-      StandardItem {
-        label: "Connect".into(),
-        icon_name: "network-transmit-receive-symbolic".into(),
-        enabled: !self.enabled(),
-        visible: true,
-        activate: Box::new(|this: &mut Self| {
-          if let Err(e) = this.do_service_link("up") {
-            error!("Failed to connect: {e}");
-          }
-        }),
-        ..Default::default()
-      }
-      .into(),
-      StandardItem {
-        label: "Disconnect".into(),
-        icon_name: "network-offline-symbolic".into(),
-        enabled: self.enabled(),
-        visible: true,
-        activate: Box::new(|this: &mut Self| {
-          if let Err(e) = this.do_service_link("down") {
-            error!("Failed to disconnect: {e}");
-          }
-        }),
-        ..Default::default()
-      }
-      .into(),
-      MenuItem::Separator,
-      StandardItem {
-        label: message.clone(),
-        icon_name: "computer-symbolic".into(),
-        activate: Box::new(move |this: &mut Self| {
-          if let Err(e) = copy_peer_ip(&this.ctx.ip, &message, true) {
-            error!("Failed to copy IP for this device: {e}");
-          }
-        }),
-        ..Default::default()
-      }
-      .into(),
-      SubMenu {
-        label: "Network Devices".into(),
-        icon_name: "network-wired-symbolic".into(),
-        submenu: vec![
-          SubMenu {
-            label: "My Devices".into(),
-            submenu: my_sub,
-            ..Default::default()
-          }
-          .into(),
-          SubMenu {
-            label: "Tailscale Services".into(),
-            submenu: serv_sub,
-            ..Default::default()
-          }
-          .into(),
-        ],
-        ..Default::default()
-      }
-      .into(),
-      StandardItem {
-        label: "Admin Console".into(),
-        icon_name: "applications-system-symbolic".into(),
-        activate: Box::new(|_| {
-          let admin_url =
-            std::env::var("TAILRAY_ADMIN_URL").unwrap_or_else(|_| {
-              "https://login.tailscale.com/admin/machines".to_string()
-            });
+    network_devices_menu.append(&my_devices_submenu)?;
+    network_devices_menu.append(&services_submenu)?;
+    menu.append(&network_devices_menu)?;
 
-          if let Err(e) = open::that(&admin_url) {
-            error!("Failed to open admin console: {e}");
-          }
-        }),
-        ..Default::default()
-      }
-      .into(),
-      MenuItem::Separator,
-      StandardItem {
-        label: "Exit Tailray".into(),
-        icon_name: "application-exit".into(),
-        activate: Box::new(|_| std::process::exit(0)),
-        ..Default::default()
-      }
-      .into(),
-    ]
+    // Admin Console menu item
+    menu.append(&MenuItem::with_id(
+      MenuId::new("admin_console"),
+      "Admin Console",
+      true,
+      None,
+    ))?;
+
+    // Separator
+    menu.append(&PredefinedMenuItem::separator())?;
+
+    // Exit menu item
+    menu.append(&MenuItem::with_id(
+      MenuId::new("exit"),
+      "Exit Tailray",
+      true,
+      None,
+    ))?;
+
+    Ok(menu)
   }
 
-  fn watcher_online(&self) {
-    info!("Watcher online.");
-  }
+  /// Gets menu event handler for the given menu ID
+  pub fn handle_menu_event(&mut self, menu_id: &str) -> Result<(), AppError> {
+    match menu_id {
+      "connect" => {
+        if let Err(e) = self.do_service_link("up") {
+          error!("Failed to connect: {e}");
+          return Err(e);
+        }
+      },
+      "disconnect" => {
+        if let Err(e) = self.do_service_link("down") {
+          error!("Failed to disconnect: {e}");
+          return Err(e);
+        }
+      },
+      "this_device" => {
+        let message = format!(
+          "This device: {} ({})",
+          self.ctx.status.this_machine.display_name, self.ctx.ip
+        );
+        if let Err(e) = copy_peer_ip(&self.ctx.ip, &message, true) {
+          error!("Failed to copy IP for this device: {e}");
+        }
+      },
+      "admin_console" => {
+        let admin_url =
+          std::env::var("TAILRAY_ADMIN_URL").unwrap_or_else(|_| {
+            "https://login.tailscale.com/admin/machines".to_string()
+          });
 
-  fn watcher_offline(&self, reason: OfflineReason) -> bool {
-    info!("Watcher offline, signaling for reconnection: {reason:?}");
-
-    // Signal the watchdog to respawn the tray
-    crate::tray::utils::signal_respawn_needed();
-
-    // Return false to allow the current instance to be cleaned up
-    // The watchdog will spawn a new one
-    false
+        if let Err(e) = open::that(&admin_url) {
+          error!("Failed to open admin console: {e}");
+        }
+      },
+      "exit" => {
+        info!("Exit menu item clicked, shutting down");
+        std::process::exit(0);
+      },
+      id if id.starts_with("peer_") => {
+        // Handle peer click - find the peer by reconstructing the IP from the
+        // ID
+        if let Some((_, peer)) = self.ctx.status.peers.iter().find(|(_, p)| {
+          !p.ips.is_empty()
+            && p.ips[0].replace(['.', ':'], "_")
+              == id.strip_prefix("peer_").unwrap_or("")
+        }) {
+          let ip = &peer.ips[0];
+          let name = &peer.display_name;
+          let peer_title = format!("{name} ({ip})");
+          if let Err(e) = copy_peer_ip(ip, &peer_title, false) {
+            error!("Failed to copy peer IP: {e}");
+          }
+        }
+      },
+      _ => {
+        debug!("Unhandled menu event: {menu_id}");
+      },
+    }
+    Ok(())
   }
 }

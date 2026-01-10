@@ -1,18 +1,59 @@
-use std::{error::Error, fmt};
+use std::{error::Error, fmt, sync::OnceLock};
 
-use ksni::Icon;
 use log::{debug, error};
 use resvg::{
   self,
   tiny_skia::{Pixmap, Transform},
   usvg::{Options, Tree},
 };
+use tray_icon::Icon;
 
 const SVG_DATA_LIGHT: &str = include_str!("assets/tailscale-light.svg");
 const SVG_DATA_DARK: &str = include_str!("assets/tailscale-dark.svg");
 
 const DISABLED_OPACITY: &str = "0.4";
 const ENABLED_OPACITY: &str = "1.0";
+
+// Icon cache to avoid repeated SVG parsing
+static ICON_CACHE: OnceLock<IconCache> = OnceLock::new();
+
+struct IconCache {
+  light_enabled:  Option<Icon>,
+  light_disabled: Option<Icon>,
+  dark_enabled:   Option<Icon>,
+  dark_disabled:  Option<Icon>,
+}
+
+impl IconCache {
+  fn new() -> Self {
+    let renderer = Resvg::default();
+
+    let light_enabled = renderer.to_icon(SVG_DATA_LIGHT).ok();
+    let light_disabled = renderer
+      .to_icon(&SVG_DATA_LIGHT.replace(ENABLED_OPACITY, DISABLED_OPACITY))
+      .ok();
+    let dark_enabled = renderer.to_icon(SVG_DATA_DARK).ok();
+    let dark_disabled = renderer
+      .to_icon(&SVG_DATA_DARK.replace(ENABLED_OPACITY, DISABLED_OPACITY))
+      .ok();
+
+    Self {
+      light_enabled,
+      light_disabled,
+      dark_enabled,
+      dark_disabled,
+    }
+  }
+
+  fn get(&self, theme: Theme, enabled: bool) -> Option<&Icon> {
+    match (theme, enabled) {
+      (Theme::Light, true) => self.light_enabled.as_ref(),
+      (Theme::Light, false) => self.light_disabled.as_ref(),
+      (Theme::Dark, true) => self.dark_enabled.as_ref(),
+      (Theme::Dark, false) => self.dark_disabled.as_ref(),
+    }
+  }
+}
 
 /// Icon theme variant
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -38,14 +79,6 @@ impl Theme {
         }
       })
       .unwrap_or_default()
-  }
-
-  /// Get the SVG data for this theme
-  const fn svg_data(&self) -> &'static str {
-    match self {
-      Self::Light => SVG_DATA_LIGHT,
-      Self::Dark => SVG_DATA_DARK,
-    }
   }
 }
 
@@ -74,7 +107,7 @@ pub struct Resvg<'a> {
 }
 
 impl Resvg<'_> {
-  /// Convert an SVG string to a KDE Systray Icon
+  /// Convert an SVG string to a tray icon
   #[allow(clippy::cast_sign_loss)]
   #[allow(clippy::cast_possible_truncation)]
   pub fn to_icon(&self, svg_str: &str) -> Result<Icon, RenderError> {
@@ -95,46 +128,27 @@ impl Resvg<'_> {
     // Render the SVG to the pixmap
     resvg::render(&tree, self.transform, &mut pixmap.as_mut());
 
-    // Convert from RGBA to ARGB format for KDE system tray
-    let argb_data: Vec<u8> = pixmap
-      .take()
-      .chunks_exact(4)
-      .flat_map(|rgba| [rgba[3], rgba[0], rgba[1], rgba[2]])
-      .collect();
+    // Get RGBA data
+    let rgba_data = pixmap.take();
 
-    // Create the Icon
-    Ok(Icon {
-      width:  size.width() as i32,
-      height: size.height() as i32,
-      data:   argb_data,
-    })
+    // Create the Icon using from_rgba
+    Icon::from_rgba(rgba_data, width, height)
+      .map_err(|e| RenderError::PixmapCreation(e.to_string()))
   }
 
   /// Load appropriate icon based on connection state and theme
-  pub fn load_icon(theme: Theme, enabled: bool) -> Vec<Icon> {
-    let renderer = Self::default();
-    let svg_data = theme.svg_data();
+  pub fn load_icon(theme: Theme, enabled: bool) -> Option<Icon> {
+    let cache = ICON_CACHE.get_or_init(IconCache::new);
 
-    if enabled {
-      debug!("Loading enabled Tailscale icon (theme: {theme:?})");
-      match renderer.to_icon(svg_data) {
-        Ok(icon) => vec![icon],
-        Err(e) => {
-          error!("Failed to load enabled icon: {e}");
-          Vec::new()
-        },
-      }
+    if let Some(icon) = cache.get(theme, enabled) {
+      debug!(
+        "Loading {} Tailscale icon (theme: {theme:?})",
+        if enabled { "enabled" } else { "disabled" }
+      );
+      Some(icon.clone())
     } else {
-      debug!("Loading disabled Tailscale icon (theme: {theme:?})");
-      // Replace opacity in SVG
-      let disabled_svg = svg_data.replace(ENABLED_OPACITY, DISABLED_OPACITY);
-      match renderer.to_icon(&disabled_svg) {
-        Ok(icon) => vec![icon],
-        Err(e) => {
-          error!("Failed to load disabled icon: {e}");
-          Vec::new()
-        },
-      }
+      error!("Failed to load icon from cache");
+      None
     }
   }
 }

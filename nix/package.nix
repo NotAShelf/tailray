@@ -1,9 +1,12 @@
 {
   lib,
-  dbus,
   pkg-config,
   rustPlatform,
   xorg,
+  gtk3,
+  libayatana-appindicator,
+  libappindicator-gtk3,
+  makeWrapper,
   rev ? "dirty",
 }: let
   cargoToml = lib.importTOML ../Cargo.toml;
@@ -24,8 +27,23 @@ in
     cargoLock.lockFile = ../Cargo.lock;
 
     strictDeps = true;
-    nativeBuildInputs = [pkg-config];
-    buildInputs = [dbus xorg.libxcb];
+    nativeBuildInputs = [pkg-config makeWrapper];
+    buildInputs = [
+      xorg.libxcb
+      gtk3
+      libayatana-appindicator
+      libappindicator-gtk3
+    ];
+
+    # Wrap the binary to set LD_LIBRARY_PATH for runtime library loading
+    postFixup = ''
+      wrapProgram $out/bin/tailray \
+        --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath [
+        libayatana-appindicator
+        libappindicator-gtk3
+        gtk3
+      ]}
+    '';
 
     meta = {
       description = "Rust implementation of tailscale-systray";
