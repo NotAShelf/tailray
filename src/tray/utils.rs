@@ -10,16 +10,14 @@ use log::{error, info};
 use muda::MenuEvent;
 use tray_icon::{TrayIcon, TrayIconBuilder};
 
-use crate::{
-  svg::renderer::Resvg,
-  tailscale,
-  tray::menu::SysTray,
-};
+use crate::{svg::renderer::Resvg, tailscale, tray::menu::SysTray};
 
 type TrayServiceError = Box<dyn Error>;
 
 /// Builds and returns a configured tray icon with menu and icon
-fn build_tray_icon(tray_context: &Arc<Mutex<SysTray>>) -> Result<TrayIcon, TrayServiceError> {
+fn build_tray_icon(
+  tray_context: &Arc<Mutex<SysTray>>,
+) -> Result<TrayIcon, TrayServiceError> {
   let ctx = tray_context
     .lock()
     .map_err(|e| format!("Failed to lock tray context: {e}"))?;
@@ -37,7 +35,10 @@ fn build_tray_icon(tray_context: &Arc<Mutex<SysTray>>) -> Result<TrayIcon, TrayS
 }
 
 /// Updates the tray icon and menu based on current context
-fn update_tray(tray: &mut TrayIcon, ctx: &mut SysTray) -> Result<(), Box<dyn Error>> {
+fn update_tray(
+  tray: &mut TrayIcon,
+  ctx: &mut SysTray,
+) -> Result<(), Box<dyn Error>> {
   let new_menu = ctx.build_menu()?;
   tray.set_menu(Some(Box::new(new_menu)));
 
@@ -68,15 +69,18 @@ fn handle_menu_event(
   }
 
   // Update tray after handling event
-  if let Ok(mut tray) = tray_icon.try_borrow_mut() {
-    if let Err(e) = update_tray(&mut tray, &mut ctx) {
-      error!("Failed to update tray: {e}");
-    }
+  if let Ok(mut tray) = tray_icon.try_borrow_mut()
+    && let Err(e) = update_tray(&mut tray, &mut ctx)
+  {
+    error!("Failed to update tray: {e}");
   }
 }
 
 /// Performs periodic status updates and refreshes the tray icon
-fn update_status(tray_context: &Arc<Mutex<SysTray>>, tray_icon: &Rc<RefCell<TrayIcon>>) {
+fn update_status(
+  tray_context: &Arc<Mutex<SysTray>>,
+  tray_icon: &Rc<RefCell<TrayIcon>>,
+) {
   let mut ctx = match tray_context.lock() {
     Ok(ctx) => ctx,
     Err(e) => {
@@ -91,15 +95,18 @@ fn update_status(tray_context: &Arc<Mutex<SysTray>>, tray_icon: &Rc<RefCell<Tray
   }
 
   // Update icon after status update
-  if let Ok(mut tray) = tray_icon.try_borrow_mut() {
-    if let Err(e) = update_tray(&mut tray, &mut ctx) {
-      error!("Failed to update tray icon: {e}");
-    }
+  if let Ok(mut tray) = tray_icon.try_borrow_mut()
+    && let Err(e) = update_tray(&mut tray, &mut ctx)
+  {
+    error!("Failed to update tray icon: {e}");
   }
 }
 
 #[cfg(target_os = "linux")]
-fn run_linux_event_loop(tray_icon: TrayIcon, tray_context: Arc<Mutex<SysTray>>) {
+fn run_linux_event_loop(
+  tray_icon: TrayIcon,
+  tray_context: Arc<Mutex<SysTray>>,
+) {
   use gtk::glib;
 
   let tray_icon = Rc::new(RefCell::new(tray_icon));

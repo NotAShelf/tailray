@@ -65,6 +65,24 @@ impl SysTray {
     self.ctx.status.tailscale_up
   }
 
+  /// Helper function to show notifications with consistent error handling
+  fn show_notification(
+    summary: &str,
+    body: &str,
+    icon: &str,
+  ) -> Result<(), AppError> {
+    Notification::new()
+      .summary(summary)
+      .body(body)
+      .icon(icon)
+      .show()
+      .map(|_| ())
+      .map_err(|e| {
+        error!("Failed to show notification: {e}");
+        AppError::Tray(TrayError::Notification(e.to_string()))
+      })
+  }
+
   /// Updates the Tailscale status
   pub fn update_status(&mut self) -> Result<(), AppError> {
     match get_current() {
@@ -85,19 +103,7 @@ impl SysTray {
       Ok(_) => {
         info!("Link {}: success", verb);
 
-        let notify = |summary: &str, body: &str, icon: &str| {
-          Notification::new()
-            .summary(summary)
-            .body(body)
-            .icon(icon)
-            .show()
-            .map_err(|e| {
-              error!("Failed to show notification: {e}");
-              AppError::Tray(TrayError::Notification(e.to_string()))
-            })
-        };
-
-        notify(
+        Self::show_notification(
           &format!("Connection {verb}"),
           &format!(
             "Tailscale service {}",
@@ -112,19 +118,7 @@ impl SysTray {
       Err(e) => {
         error!("Failed to execute command: {e}");
 
-        let notify = |summary: &str, body: &str, icon: &str| {
-          Notification::new()
-            .summary(summary)
-            .body(body)
-            .icon(icon)
-            .show()
-            .map_err(|e| {
-              error!("Failed to show notification: {e}");
-              AppError::Tray(TrayError::Notification(e.to_string()))
-            })
-        };
-
-        notify(
+        Self::show_notification(
           "Connection Failed",
           &format!("Failed to {verb} Tailscale: {e}"),
           "error",
@@ -144,42 +138,41 @@ impl SysTray {
     debug!("Creating menu with device {message}");
 
     // Connect menu item
-    let connect_item = MenuItem::with_id(
+    menu.append(&MenuItem::with_id(
       MenuId::new("connect"),
       "Connect",
       !self.enabled(),
       None,
-    );
-    menu.append(&connect_item)?;
+    ))?;
 
     // Disconnect menu item
-    let disconnect_item = MenuItem::with_id(
+    menu.append(&MenuItem::with_id(
       MenuId::new("disconnect"),
       "Disconnect",
       self.enabled(),
       None,
-    );
-    menu.append(&disconnect_item)?;
+    ))?;
 
     // Separator
     menu.append(&PredefinedMenuItem::separator())?;
 
     // This device menu item
-    let this_device_item = MenuItem::with_id(
+    menu.append(&MenuItem::with_id(
       MenuId::new("this_device"),
       &message,
       true,
       None,
-    );
-    menu.append(&this_device_item)?;
+    ))?;
 
     // Network devices submenu
-    let network_devices_menu = Submenu::with_id("network_devices", "Network Devices", true);
+    let network_devices_menu =
+      Submenu::with_id("network_devices", "Network Devices", true);
 
     // My Devices submenu
     let my_devices_submenu = Submenu::with_id("my_devices", "My Devices", true);
     // Tailscale Services submenu
-    let services_submenu = Submenu::with_id("tailscale_services", "Tailscale Services", true);
+    let services_submenu =
+      Submenu::with_id("tailscale_services", "Tailscale Services", true);
 
     // Populate device submenus
     for (_, peer) in self
@@ -189,12 +182,13 @@ impl SysTray {
       .iter()
       .filter(|(_, peer)| !peer.ips.is_empty())
     {
-      let ip = peer.ips[0].clone();
+      let ip = &peer.ips[0];
       let name = &peer.display_name;
       let peer_label = format!("{name}\t({ip})");
-      let peer_id = format!("peer_{}", ip.replace('.', "_").replace(':', "_"));
+      let peer_id = format!("peer_{}", ip.replace(['.', ':'], "_"));
 
-      let peer_item = MenuItem::with_id(MenuId::new(&peer_id), peer_label, true, None);
+      let peer_item =
+        MenuItem::with_id(MenuId::new(&peer_id), peer_label, true, None);
 
       match name {
         PeerKind::HostName(_) => {
@@ -211,20 +205,23 @@ impl SysTray {
     menu.append(&network_devices_menu)?;
 
     // Admin Console menu item
-    let admin_console_item = MenuItem::with_id(
+    menu.append(&MenuItem::with_id(
       MenuId::new("admin_console"),
       "Admin Console",
       true,
       None,
-    );
-    menu.append(&admin_console_item)?;
+    ))?;
 
     // Separator
     menu.append(&PredefinedMenuItem::separator())?;
 
     // Exit menu item
-    let exit_item = MenuItem::with_id(MenuId::new("exit"), "Exit Tailray", true, None);
-    menu.append(&exit_item)?;
+    menu.append(&MenuItem::with_id(
+      MenuId::new("exit"),
+      "Exit Tailray",
+      true,
+      None,
+    ))?;
 
     Ok(menu)
   }
@@ -254,8 +251,10 @@ impl SysTray {
         }
       },
       "admin_console" => {
-        let admin_url = std::env::var("TAILRAY_ADMIN_URL")
-          .unwrap_or_else(|_| "https://login.tailscale.com/admin/machines".to_string());
+        let admin_url =
+          std::env::var("TAILRAY_ADMIN_URL").unwrap_or_else(|_| {
+            "https://login.tailscale.com/admin/machines".to_string()
+          });
 
         if let Err(e) = open::that(&admin_url) {
           error!("Failed to open admin console: {e}");
@@ -266,18 +265,17 @@ impl SysTray {
         std::process::exit(0);
       },
       id if id.starts_with("peer_") => {
-        // Handle peer click - find the peer by reconstructing the IP from the ID
-        if let Some((_, peer)) = self
-          .ctx
-          .status
-          .peers
-          .iter()
-          .find(|(_, p)| !p.ips.is_empty() && p.ips[0].to_string().replace('.', "_").replace(':', "_") == id.strip_prefix("peer_").unwrap_or(""))
-        {
-          let ip = peer.ips[0].clone();
+        // Handle peer click - find the peer by reconstructing the IP from the
+        // ID
+        if let Some((_, peer)) = self.ctx.status.peers.iter().find(|(_, p)| {
+          !p.ips.is_empty()
+            && p.ips[0].replace(['.', ':'], "_")
+              == id.strip_prefix("peer_").unwrap_or("")
+        }) {
+          let ip = &peer.ips[0];
           let name = &peer.display_name;
           let peer_title = format!("{name} ({ip})");
-          if let Err(e) = copy_peer_ip(&ip, &peer_title, false) {
+          if let Err(e) = copy_peer_ip(ip, &peer_title, false) {
             error!("Failed to copy peer IP: {e}");
           }
         }
