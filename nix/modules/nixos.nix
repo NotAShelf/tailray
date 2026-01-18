@@ -28,6 +28,13 @@ in {
       default = null;
       example = "https://headplane.example.com/admin/login";
     };
+
+    darkMode = mkOption {
+      description = "Whether to use the dark theme (sets TAILRAY_THEME=dark).";
+      type = bool;
+      default = false;
+      example = true;
+    };
   };
 
   config = mkIf cfg.enable {
@@ -42,6 +49,7 @@ in {
       };
 
       environment.TAILRAY_ADMIN_URL = mkIf (cfg.adminUrl != null) cfg.adminUrl;
+      environment.TAILRAY_THEME = if cfg.darkMode then "dark" else "light"
     };
   };
 }
