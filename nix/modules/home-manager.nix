@@ -3,7 +3,7 @@ self:
 let
   inherit (lib.options) mkEnableOption mkPackageOption mkOption;
   inherit (lib.meta) getExe;
-  inherit (lib.types) nullOr str;
+  inherit (lib.types) nullOr str bool;
   inherit (lib) mkIf optionals;
 
   cfg = config.services.tailray;
