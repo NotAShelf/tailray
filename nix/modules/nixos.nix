@@ -6,7 +6,7 @@ self: {
 }: let
   inherit (lib.options) mkEnableOption mkPackageOption mkOption;
   inherit (lib.meta) getExe;
-  inherit (lib.types) nullOr str;
+  inherit (lib.types) nullOr str bool;
   inherit (lib) mkIf;
 
   cfg = config.services.tailray;
@@ -49,7 +49,7 @@ in {
       };
 
       environment.TAILRAY_ADMIN_URL = mkIf (cfg.adminUrl != null) cfg.adminUrl;
-      environment.TAILRAY_THEME = if cfg.darkMode then "dark" else "light"
+      environment.TAILRAY_THEME = if cfg.darkMode then "dark" else "light";
     };
   };
 }
