@@ -6,7 +6,7 @@ self: {
 }: let
   inherit (lib.options) mkEnableOption mkPackageOption mkOption;
   inherit (lib.meta) getExe;
-  inherit (lib.types) nullOr str;
+  inherit (lib.types) nullOr str enum;
   inherit (lib) mkIf;
 
   cfg = config.services.tailray;
@@ -28,6 +28,13 @@ in {
       default = null;
       example = "https://headplane.example.com/admin/login";
     };
+
+    theme = mkOption {
+      description = "Icon Theme";
+      type = enum ["light" "dark"];
+      default = "light";
+      example = "dark";
+    };
   };
 
   config = mkIf cfg.enable {
@@ -40,8 +47,10 @@ in {
         Restart = "always";
         RestartSec = "10";
       };
-
-      environment.TAILRAY_ADMIN_URL = mkIf (cfg.adminUrl != null) cfg.adminUrl;
+      environment = {
+        TAILRAY_THEME = cfg.theme;
+        TAILRAY_ADMIN_URL = mkIf (cfg.adminUrl != null) cfg.adminUrl;
+      };
     };
   };
 }
