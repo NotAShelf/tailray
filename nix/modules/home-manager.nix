@@ -54,11 +54,12 @@ in {
         ExecStart = "${getExe cfg.package}";
         Restart = "always";
         RestartSec = "10";
-        Environment =
-          [
-            "TAILRAY_THEME=${cfg.theme}"
-            lib.optional (cfg.adminUrl != null) "TAILRAY_ADMIN_URL=${cfg.adminUrl}"
-          ]
+        Environment = [
+          "TAILRAY_THEME=${cfg.theme}"
+          lib.optional
+          (cfg.adminUrl != null)
+          "TAILRAY_ADMIN_URL=${cfg.adminUrl}"
+        ];
       };
     };
   };

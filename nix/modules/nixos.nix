@@ -46,9 +46,7 @@ in {
       environment = {
         TAILRAY_ADMIN_URL = mkIf (cfg.adminUrl != null) cfg.adminUrl;
         TAILRAY_THEME = {cfg.theme};
-
       };
-
     };
   };
 }
