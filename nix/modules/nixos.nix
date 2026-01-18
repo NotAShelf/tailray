@@ -3,7 +3,7 @@ self:
 let
   inherit (lib.options) mkEnableOption mkPackageOption mkOption;
   inherit (lib.meta) getExe;
-  inherit (lib.types) nullOr str bool;
+  inherit (lib.types) nullOr str enum;
   inherit (lib) mkIf;
 
   cfg = config.services.tailray;
@@ -24,11 +24,11 @@ in {
       example = "https://headplane.example.com/admin/login";
     };
 
-    darkMode = mkOption {
-      description = "Whether to use the dark theme (sets TAILRAY_THEME=dark).";
-      type = bool;
-      default = false;
-      example = true;
+    theme = mkOption {
+      description = "Icon Theme";
+      type = enum [ "light" "dark" ];
+      default = "light";
+      example = "dark";
     };
   };
 
@@ -45,9 +45,10 @@ in {
 
       environment = {
         TAILRAY_ADMIN_URL = mkIf (cfg.adminUrl != null) cfg.adminUrl;
-        TAILRAY_THEME = if cfg.darkMode then "dark" else "light";
+        TAILRAY_THEME = {cfg.theme};
+
       };
-      
+
     };
   };
 }
