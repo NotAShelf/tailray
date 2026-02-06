@@ -1,6 +1,6 @@
 {
+  lib,
   mkShell,
-  dbus,
   python3,
   pkg-config,
   rust-analyzer-unwrapped,
@@ -8,14 +8,25 @@
   clippy,
   cargo,
   rustc,
+  lld,
   rustPlatform,
+  # Build libs
   xorg,
+  gtk3,
+  libayatana-appindicator,
+  libappindicator-gtk3,
+  xdotool,
 }:
 mkShell {
-  env."RUST_SRC_PATH" = "${rustPlatform.rustLibSrc}";
-
   strictDeps = true;
-  buildInputs = [dbus xorg.libxcb];
+  buildInputs = [
+    xorg.libxcb
+    xdotool
+    gtk3
+    libayatana-appindicator
+    libappindicator-gtk3
+  ];
+
   nativeBuildInputs = [
     pkg-config
     python3
@@ -25,5 +36,11 @@ mkShell {
     rust-analyzer-unwrapped
     (rustfmt.override {asNightly = true;})
     clippy
+    lld
   ];
+
+  env = {
+    RUST_SRC_PATH = "${rustPlatform.rustLibSrc}";
+    LD_LIBRARY_PATH = "${lib.makeLibraryPath [libayatana-appindicator libappindicator-gtk3 gtk3]}";
+  };
 }
