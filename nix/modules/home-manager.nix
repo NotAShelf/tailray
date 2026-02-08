@@ -6,7 +6,7 @@ self: {
 }: let
   inherit (lib.options) mkEnableOption mkPackageOption mkOption;
   inherit (lib.meta) getExe;
-  inherit (lib.types) nullOr str;
+  inherit (lib.types) nullOr str enum;
   inherit (lib) mkIf optionals;
 
   cfg = config.services.tailray;
@@ -28,6 +28,13 @@ in {
       default = null;
       example = "https://headplane.example.com/admin/login";
     };
+
+    theme = mkOption {
+      description = "Icon Theme";
+      type = enum ["light" "dark"];
+      default = "light";
+      example = "dark";
+    };
   };
 
   config = mkIf cfg.enable {
@@ -47,9 +54,12 @@ in {
         ExecStart = "${getExe cfg.package}";
         Restart = "always";
         RestartSec = "10";
-        Environment = optionals (cfg.adminUrl != null) [
-          "TAILRAY_ADMIN_URL=${cfg.adminUrl}"
-        ];
+        Environment =
+          lib.optional (cfg.adminUrl != null)
+          ["TAILRAY_ADMIN_URL=${cfg.adminUrl}"]
+          ++ [
+            "TAILRAY_THEME=${cfg.theme}"
+          ];
       };
     };
   };
