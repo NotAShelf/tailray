@@ -9,13 +9,13 @@
   cargo,
   rustc,
   rustPlatform,
-  xorg,
+  libxcb,
 }:
 mkShell {
   env."RUST_SRC_PATH" = "${rustPlatform.rustLibSrc}";
 
   strictDeps = true;
-  buildInputs = [dbus xorg.libxcb];
+  buildInputs = [dbus libxcb];
   nativeBuildInputs = [
     pkg-config
     python3

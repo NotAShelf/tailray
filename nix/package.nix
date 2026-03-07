@@ -3,7 +3,7 @@
   dbus,
   pkg-config,
   rustPlatform,
-  xorg,
+  libxcb,
   rev ? "dirty",
 }: let
   cargoToml = lib.importTOML ../Cargo.toml;
@@ -25,7 +25,7 @@ in
 
     strictDeps = true;
     nativeBuildInputs = [pkg-config];
-    buildInputs = [dbus xorg.libxcb];
+    buildInputs = [dbus libxcb];
 
     meta = {
       description = "Rust implementation of tailscale-systray";
