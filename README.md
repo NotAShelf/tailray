@@ -65,6 +65,16 @@ Console URL by default. You may override this URL by setting `TAILRAY_ADMIN_URL`
 to an URL of your choice. This is useful if you are using Headscale as your
 Tailscale coordination sever.
 
+### Systemd Service
+
+To make the tray persistent across sessions on systemd-based systems, you can enable the provided user [service](contrib/tailray.service):
+´´´bash
+cp contrib/tailray.service /usr/lib/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now tailray.service
+```
+
+
 ## Hacking
 
 The recommended way of building Tailray is with the Nix build tool. You may run
