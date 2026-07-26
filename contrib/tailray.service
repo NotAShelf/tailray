@@ -1,0 +1,10 @@
+[Unit]
+Description=Modern and fast implementation of tailscale-systray in Rust
+After=network.target tailscaled.service
+
+[Service]
+ExecStart=tailray
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
