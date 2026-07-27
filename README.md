@@ -68,7 +68,7 @@ Tailscale coordination sever.
 ### Systemd Service
 
 To make the tray persistent across sessions on systemd-based systems, you can enable the provided user [service](contrib/tailray.service):
-´´´bash
+```bash
 cp contrib/tailray.service /usr/lib/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now tailray.service
