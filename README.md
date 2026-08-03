@@ -25,7 +25,7 @@ ground up for a more maintainable codebase.
 ## Usage
 
 Tailray requires Tailscaled to be up and running. On Linux systems, you can
-check its status with `systemctl status tailscaled`. After you confirm that
+check its status with your init system (e.g. for systemd system : `systemctl status tailscaled`). After you confirm that
 Tailscale is running, and that you are authenticated run `tailray` from a
 terminal or consider writing a Systemd service for it.
 
