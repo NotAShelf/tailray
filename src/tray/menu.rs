@@ -7,7 +7,7 @@ use ksni::{
   OfflineReason,
   ToolTip,
   Tray,
-  menu::{StandardItem, SubMenu},
+  menu::{CheckmarkItem, StandardItem, SubMenu},
 };
 use log::{debug, error, info};
 use notify_rust::Notification;
@@ -142,6 +142,47 @@ impl SysTray {
       },
     }
   }
+
+  /// Sets (or clears) the active exit node.
+  pub fn set_exit_node(&mut self, value: &str) -> Result<(), AppError> {
+    let arg = format!("--exit-node={value}");
+    let result = run_with_elevation("tailscale", &["set", &arg]);
+
+    let notify = |summary: &str, body: &str, icon: &str| {
+      Notification::new()
+        .summary(summary)
+        .body(body)
+        .icon(icon)
+        .show()
+        .map_err(|e| {
+          error!("Failed to show notification: {e}");
+          AppError::Tray(TrayError::Notification(e.to_string()))
+        })
+    };
+
+    match result {
+      Ok(_) => {
+        if value.is_empty() {
+          info!("Exit node cleared");
+          notify("Exit Node", "Exit node disabled", "info")?;
+        } else {
+          info!("Exit node set to {value}");
+          notify("Exit Node", &format!("Routing through {value}"), "info")?;
+        }
+        self.update_status()?;
+        Ok(())
+      },
+      Err(e) => {
+        error!("Failed to set exit node: {e}");
+        notify(
+          "Exit Node Failed",
+          &format!("Failed to set exit node: {e}"),
+          "error",
+        )?;
+        Err(AppError::Tray(TrayError::Command(e.to_string())))
+      },
+    }
+  }
 }
 
 impl Tray for SysTray {
@@ -182,6 +223,68 @@ impl Tray for SysTray {
 
     let message = format!("This device: {} ({})", device_name, self.ctx.ip);
     debug!("Creating menu with device {message}");
+
+    // Prepare exit-node submenu
+    let current_exit_ip: Option<String> = self
+      .ctx
+      .status
+      .peers
+      .values()
+      .find(|p| p.exit_node && !p.ips.is_empty())
+      .map(|p| p.ips[0].clone());
+
+    let mut exit_node_peers: Vec<_> = self
+      .ctx
+      .status
+      .peers
+      .values()
+      .filter(|p| p.exit_node_option && !p.ips.is_empty())
+      .collect();
+    exit_node_peers.sort_by(|a, b| {
+      a.display_name.to_string().cmp(&b.display_name.to_string())
+    });
+
+    let mut exit_node_items: Vec<MenuItem<Self>> = vec![
+      CheckmarkItem {
+        label: "None".into(),
+        checked: current_exit_ip.is_none(),
+        enabled: self.enabled() && current_exit_ip.is_some(),
+        activate: Box::new(|this: &mut Self| {
+          if let Err(e) = this.set_exit_node("") {
+            error!("Failed to clear exit node: {e}");
+          }
+        }),
+        ..Default::default()
+      }
+      .into(),
+    ];
+
+    for peer in exit_node_peers {
+      let ip = peer.ips[0].clone();
+
+      let label = if peer.online {
+        format!("{}\t({ip})", peer.display_name)
+      } else {
+        format!("{} (Offline)\t({ip})", peer.display_name)
+      };
+
+      let checked = current_exit_ip.as_ref() == Some(&ip);
+      let ip_for_activate = ip.clone();
+      exit_node_items.push(
+        CheckmarkItem {
+          label,
+          checked,
+          enabled: self.enabled() && !checked && peer.online,
+          activate: Box::new(move |this: &mut Self| {
+            if let Err(e) = this.set_exit_node(&ip_for_activate) {
+              error!("Failed to set exit node: {e}");
+            }
+          }),
+          ..Default::default()
+        }
+        .into(),
+      );
+    }
 
     // Prepare device submenus
     let (my_sub, serv_sub): (Vec<_>, Vec<_>) = self
@@ -277,6 +380,14 @@ impl Tray for SysTray {
           }
           .into(),
         ],
+        ..Default::default()
+      }
+      .into(),
+      SubMenu {
+        label: "Exit Node".into(),
+        icon_name: "network-vpn-symbolic".into(),
+        enabled: self.enabled(),
+        submenu: exit_node_items,
         ..Default::default()
       }
       .into(),

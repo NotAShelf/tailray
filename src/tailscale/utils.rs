@@ -39,6 +39,15 @@ pub struct Machine {
 
   #[serde(rename = "TailscaleIPs", default)]
   pub ips: Vec<String>,
+
+  #[serde(rename = "ExitNodeOption", default)]
+  pub exit_node_option: bool,
+
+  #[serde(rename = "ExitNode", default)]
+  pub exit_node: bool,
+
+  #[serde(rename = "Online", default)]
+  pub online: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
